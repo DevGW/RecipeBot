@@ -1,0 +1,40 @@
+{
+  "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
+  "name": "recipebot-devvit",
+  "server": {
+    "dir": "dist/server",
+    "entry": "index.cjs"
+  },
+  "permissions": {
+    "http": {
+      "enable": true,
+      "domains": ["recipebot.devgw.com"]
+    },
+    "reddit": true
+  },
+  "triggers": {
+    "onCommentCreate": "/internal/triggers/comment-create"
+  },
+  "settings": {
+    "global": {
+      "RECIPEBOT_BACKEND_URL": {
+        "type": "string",
+        "label": "RecipeBot backend URL",
+        "defaultValue": "https://recipebot.devgw.com"
+      },
+      "RECIPEBOT_WEBHOOK_SECRET": {
+        "type": "string",
+        "label": "RecipeBot webhook HMAC secret",
+        "isSecret": true
+      }
+    }
+  },
+  "dev": {
+    "subreddit": "RecipeBotTest"
+  },
+  "scripts": {
+    "build": "npm run build",
+    "dev": "npm run build -- --watch"
+  },
+  "sourceIgnores": ["tests/", "coverage/"]
+}

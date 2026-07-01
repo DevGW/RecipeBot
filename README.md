@@ -127,6 +127,8 @@ The signature key is `DEVVIT_WEBHOOK_SECRET`. RecipeBot compares signatures in c
 
 Keep `DEVVIT_REQUIRE_HMAC=true` in production. The shared secret must be configured identically in RecipeBot and the Devvit app, and must not be committed or logged.
 
+The server-only TypeScript adapter and its playtest instructions live in [`devvit/`](devvit/README.md).
+
 ## Legacy Reddit command listener
 
 The PRAW listener is retained as an optional legacy adapter and is no longer the preferred integration path. It recognizes only a standalone `!recipecard` comment. Extra text, flags, partial words, deleted comments, and comments authored by the configured bot account are ignored. Ingestion records the requesting username so the worker can privately deliver completed results.

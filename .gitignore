@@ -18,6 +18,8 @@ dist/
 build/
 artifacts/
 tmp/
+/devvit/node_modules/
+/devvit/coverage/
 
 # OS/editor
 .DS_Store
