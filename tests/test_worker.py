@@ -74,13 +74,18 @@ def test_process_job_orchestrates_mocked_renderer(tmp_path: Path) -> None:
         pdf_path="card.pdf",
     )
     job = Job(id=41, command_comment_id="t1_process", status=JobState.CLAIMED.value)
-    worker._load_recipe_spec = MagicMock(return_value=(9, spec))
+    worker._load_recipe_spec = MagicMock(
+        return_value=(9, spec, "https://reddit.com/r/recipes/comments/example")
+    )
     worker._transition = MagicMock()
     worker._store_card = MagicMock(return_value=12)
     worker._require_job = MagicMock(return_value=job)
     session.get.return_value = card
 
-    with patch("app.jobs.worker.mark_job_completed") as mark_completed:
+    with (
+        patch("app.jobs.worker.create_job_bundle") as create_bundle,
+        patch("app.jobs.worker.mark_job_completed") as mark_completed,
+    ):
         result = worker.process_job(41)
 
     assert result is card
@@ -95,6 +100,15 @@ def test_process_job_orchestrates_mocked_renderer(tmp_path: Path) -> None:
         (41, JobState.MESSAGING),
     ]
     worker._store_card.assert_called_once_with(41, 9, renderer.return_value)
+    create_bundle.assert_called_once_with(
+        tmp_path,
+        "http://localhost:8000/cards",
+        job_id=41,
+        card_id=12,
+        title="Worker Soup",
+        slug="worker-soup",
+        source_url="https://reddit.com/r/recipes/comments/example",
+    )
     mark_completed.assert_called_once_with(session, job, card)
 
 

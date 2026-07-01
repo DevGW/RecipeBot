@@ -13,6 +13,8 @@ def test_settings_load_from_environment(monkeypatch) -> None:
     monkeypatch.setenv("ARTIFACT_ROOT", "/tmp/recipebot-artifacts")
     monkeypatch.setenv("ARTIFACT_BASE_URL", "https://cards.example.test")
     monkeypatch.setenv("IMAGEMAGICK_BINARY", "/usr/local/bin/magick")
+    monkeypatch.setenv("WEB_HOST", "0.0.0.0")
+    monkeypatch.setenv("WEB_PORT", "8097")
 
     settings = Settings(_env_file=None)
 
@@ -24,6 +26,8 @@ def test_settings_load_from_environment(monkeypatch) -> None:
     assert str(settings.artifact_root) == "/tmp/recipebot-artifacts"
     assert settings.artifact_base_url == "https://cards.example.test"
     assert settings.imagemagick_binary == "/usr/local/bin/magick"
+    assert settings.web_host == "0.0.0.0"
+    assert settings.web_port == 8097
 
 
 def test_settings_accept_json_subreddit_list(monkeypatch) -> None:

@@ -23,6 +23,7 @@ from app.jobs.service import (
 from app.jobs.states import JobState
 from app.rendering.card_spec import RecipeCardSpec
 from app.rendering.renderer import RenderedCardPaths, render_card
+from app.storage.artifacts import create_job_bundle
 
 RenderFunction = Callable[..., RenderedCardPaths]
 RENDER_VERSION = "1"
@@ -66,7 +67,7 @@ class JobWorker:
 
     def process_job(self, job_id: int) -> Card:
         """Load, render, store, and complete one previously claimed job."""
-        recipe_id, spec = self._load_recipe_spec(job_id)
+        recipe_id, spec, source_url = self._load_recipe_spec(job_id)
         self._transition(job_id, JobState.RENDERING)
         output_directory = self.settings.artifact_root / "jobs" / str(job_id)
         paths = self.renderer(
@@ -77,6 +78,15 @@ class JobWorker:
 
         self._transition(job_id, JobState.STORING)
         card_id = self._store_card(job_id, recipe_id, paths)
+        create_job_bundle(
+            self.settings.artifact_root,
+            self.settings.artifact_base_url,
+            job_id=job_id,
+            card_id=card_id,
+            title=spec.title,
+            slug=spec.slug,
+            source_url=source_url,
+        )
 
         # Messaging is a durable lifecycle checkpoint only; Reddit behavior is not implemented yet.
         self._transition(job_id, JobState.MESSAGING)
@@ -88,7 +98,7 @@ class JobWorker:
             mark_job_completed(session, job, card)
             return card
 
-    def _load_recipe_spec(self, job_id: int) -> tuple[int, RecipeCardSpec]:
+    def _load_recipe_spec(self, job_id: int) -> tuple[int, RecipeCardSpec, str | None]:
         with self.session_factory.begin() as session:
             job = self._require_job(session, job_id)
             set_job_state(session, job, JobState.PARSING)
@@ -99,7 +109,11 @@ class JobWorker:
             )
             if recipe is None:
                 raise ValueError(f"source item {job.source_item.id} has no recipe")
-            return recipe.id, RecipeCardSpec.model_validate(recipe.spec_data)
+            return (
+                recipe.id,
+                RecipeCardSpec.model_validate(recipe.spec_data),
+                job.source_item.permalink,
+            )
 
     def _store_card(
         self,

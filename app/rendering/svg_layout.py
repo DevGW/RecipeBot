@@ -108,7 +108,7 @@ def render_recipe_svg(spec: RecipeCardSpec) -> str:
      viewBox="0 0 {CARD_WIDTH} {card_height}">
   <style>
     .background {{ fill: #fffdf8; }}
-    text {{ font-family: Helvetica, Arial, sans-serif; fill: #23211f; }}
+    text {{ font-family: "DejaVu Sans", Arial, sans-serif; fill: #23211f; }}
     .title {{ font-size: 68px; font-weight: 700; }}
     .description {{ font-size: 32px; fill: #625e58; }}
     .facts {{ fill: #f0eadf; }}
