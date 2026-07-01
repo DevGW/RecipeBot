@@ -15,6 +15,13 @@ def test_settings_load_from_environment(monkeypatch) -> None:
     monkeypatch.setenv("IMAGEMAGICK_BINARY", "/usr/local/bin/magick")
     monkeypatch.setenv("WEB_HOST", "0.0.0.0")
     monkeypatch.setenv("WEB_PORT", "8097")
+    monkeypatch.setenv("REDDIT_CLIENT_ID", "client-id")
+    monkeypatch.setenv("REDDIT_CLIENT_SECRET", "client-secret")
+    monkeypatch.setenv("REDDIT_USERNAME", "recipebot")
+    monkeypatch.setenv("REDDIT_PASSWORD", "password")
+    monkeypatch.setenv("REDDIT_USER_AGENT", "RecipeBot tests")
+    monkeypatch.setenv("REDDIT_COMMAND", "!recipecard")
+    monkeypatch.setenv("REDDIT_DRY_RUN", "true")
 
     settings = Settings(_env_file=None)
 
@@ -28,6 +35,13 @@ def test_settings_load_from_environment(monkeypatch) -> None:
     assert settings.imagemagick_binary == "/usr/local/bin/magick"
     assert settings.web_host == "0.0.0.0"
     assert settings.web_port == 8097
+    assert settings.reddit_client_id == "client-id"
+    assert settings.reddit_client_secret == "client-secret"
+    assert settings.reddit_username == "recipebot"
+    assert settings.reddit_password == "password"
+    assert settings.reddit_user_agent == "RecipeBot tests"
+    assert settings.reddit_command == "!recipecard"
+    assert settings.reddit_dry_run is True
 
 
 def test_settings_accept_json_subreddit_list(monkeypatch) -> None:

@@ -55,5 +55,24 @@ services:
     volumes:
       - ./artifacts:/app/artifacts:ro
 
+  bot:
+    profiles: ["reddit"]
+    build: .
+    command: ["python", "-m", "scripts.run_reddit_listener"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://recipebot:recipebot@postgres:5432/recipebot
+      BOT_ENABLED: ${BOT_ENABLED:-false}
+      ENABLED_SUBREDDITS: ${ENABLED_SUBREDDITS:-}
+      REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID:-}
+      REDDIT_CLIENT_SECRET: ${REDDIT_CLIENT_SECRET:-}
+      REDDIT_USERNAME: ${REDDIT_USERNAME:-}
+      REDDIT_PASSWORD: ${REDDIT_PASSWORD:-}
+      REDDIT_USER_AGENT: ${REDDIT_USER_AGENT:-RecipeBot/0.1}
+      REDDIT_COMMAND: ${REDDIT_COMMAND:-!recipecard}
+      REDDIT_DRY_RUN: ${REDDIT_DRY_RUN:-true}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
 volumes:
   recipebot-postgres:

@@ -40,6 +40,19 @@ class Settings(BaseSettings):
     imagemagick_binary: str = Field(default="magick", validation_alias="IMAGEMAGICK_BINARY")
     web_host: str = Field(default="127.0.0.1", validation_alias="WEB_HOST")
     web_port: int = Field(default=8000, ge=1, le=65535, validation_alias="WEB_PORT")
+    reddit_client_id: str | None = Field(default=None, validation_alias="REDDIT_CLIENT_ID")
+    reddit_client_secret: str | None = Field(
+        default=None,
+        validation_alias="REDDIT_CLIENT_SECRET",
+    )
+    reddit_username: str | None = Field(default=None, validation_alias="REDDIT_USERNAME")
+    reddit_password: str | None = Field(default=None, validation_alias="REDDIT_PASSWORD")
+    reddit_user_agent: str = Field(
+        default="RecipeBot/0.1 by an-unconfigured-user",
+        validation_alias="REDDIT_USER_AGENT",
+    )
+    reddit_command: str = Field(default="!recipecard", validation_alias="REDDIT_COMMAND")
+    reddit_dry_run: bool = Field(default=True, validation_alias="REDDIT_DRY_RUN")
 
     @field_validator("enabled_subreddits", mode="before")
     @classmethod
