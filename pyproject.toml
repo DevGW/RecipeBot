@@ -1,0 +1,12 @@
+[project]
+name = "recipebot"
+version = "0.1.0"
+description = "Reddit recipe card bot using Python, Postgres, and ImageMagick."
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
