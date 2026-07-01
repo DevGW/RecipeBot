@@ -1,4 +1,4 @@
-"""FastAPI delivery service for completed recipe cards."""
+"""Flask delivery service for completed recipe cards."""
 
 from __future__ import annotations
 
@@ -6,8 +6,7 @@ from collections.abc import Callable
 from html import escape
 from urllib.parse import urlsplit
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse
+from flask import Flask, Response, abort, jsonify, send_file
 
 from app.config.settings import Settings, get_settings
 from app.db.models import Card
@@ -21,23 +20,23 @@ def create_app(
     settings: Settings | None = None,
     *,
     card_loader: CardLoader | None = None,
-) -> FastAPI:
-    """Create the card delivery application with injectable database access."""
+) -> Flask:
+    """Create the Flask card-delivery application with injectable database access."""
     resolved_settings = settings or get_settings()
     load_card = card_loader or _database_card_loader(resolved_settings)
-    application = FastAPI(title="RecipeBot", docs_url=None, redoc_url=None)
+    application = Flask(__name__)
 
     def load_paths(card_id: int) -> ArtifactPaths:
         """Load and validate the filesystem paths for one card."""
         card = load_card(card_id)
         if card is None:
-            raise HTTPException(status_code=404, detail="card not found")
+            abort(404)
         try:
             return resolve_card_artifacts(resolved_settings.artifact_root, card_id, card)
-        except ValueError as error:
-            raise HTTPException(status_code=404, detail="card artifacts not found") from error
+        except ValueError:
+            abort(404)
 
-    def file_response(card_id: int, filename: str, media_type: str) -> FileResponse:
+    def file_response(card_id: int, filename: str, media_type: str) -> Response:
         """Build a response for one fixed artifact filename."""
         paths = load_paths(card_id)
         artifact = {
@@ -47,22 +46,28 @@ def create_app(
             "recipe-card.zip": paths.zip,
         }[filename]
         if not artifact.is_file():
-            raise HTTPException(status_code=404, detail="artifact not found")
-        return FileResponse(artifact, media_type=media_type, filename=filename)
+            abort(404)
+        return send_file(
+            artifact,
+            mimetype=media_type,
+            as_attachment=False,
+            download_name=filename,
+            conditional=True,
+        )
 
-    @application.api_route("/health", methods=["GET", "HEAD"])
-    def health() -> dict[str, str]:
+    @application.route("/health", methods=["GET", "HEAD"])
+    def health() -> Response:
         """Report that the HTTP process is ready to serve requests."""
-        return {"status": "ok"}
+        return jsonify(status="ok")
 
-    @application.get("/cards/{card_id}", response_class=HTMLResponse)
-    def card_landing_page(card_id: int) -> HTMLResponse:
+    @application.route("/cards/<int:card_id>", methods=["GET", "HEAD"])
+    def card_landing_page(card_id: int) -> Response:
         """Show a plain HTML preview and download page for a completed card."""
         paths = load_paths(card_id)
         try:
             metadata = read_metadata(paths)
-        except ValueError as error:
-            raise HTTPException(status_code=404, detail="card metadata not found") from error
+        except ValueError:
+            abort(404)
 
         title = escape(str(metadata.get("title") or "Recipe card"))
         source_url = metadata.get("source_url")
@@ -102,27 +107,39 @@ def create_app(
 </body>
 </html>
 """
-        return HTMLResponse(html)
+        return Response(html, mimetype="text/html")
 
-    @application.get("/cards/{card_id}/card.png")
-    def card_png(card_id: int) -> FileResponse:
+    @application.route("/cards/<int:card_id>/card.png", methods=["GET", "HEAD"])
+    def card_png(card_id: int) -> Response:
         """Return the rendered PNG preview for a card."""
         return file_response(card_id, "card.png", "image/png")
 
-    @application.get("/cards/{card_id}/card.svg")
-    def card_svg(card_id: int) -> FileResponse:
+    @application.route("/cards/<int:card_id>/card.svg", methods=["GET", "HEAD"])
+    def card_svg(card_id: int) -> Response:
         """Return the vector SVG artifact for a card."""
         return file_response(card_id, "card.svg", "image/svg+xml")
 
-    @application.get("/cards/{card_id}/card.pdf")
-    def card_pdf(card_id: int) -> FileResponse:
+    @application.route("/cards/<int:card_id>/card.pdf", methods=["GET", "HEAD"])
+    def card_pdf(card_id: int) -> Response:
         """Return the printable PDF artifact for a card."""
         return file_response(card_id, "card.pdf", "application/pdf")
 
-    @application.get("/cards/{card_id}/recipe-card.zip")
-    def card_zip(card_id: int) -> FileResponse:
+    @application.route(
+        "/cards/<int:card_id>/recipe-card.zip",
+        methods=["GET", "HEAD"],
+    )
+    def card_zip(card_id: int) -> Response:
         """Return the complete downloadable artifact bundle for a card."""
         return file_response(card_id, "recipe-card.zip", "application/zip")
+
+    @application.post("/internal/devvit/recipecard")
+    def devvit_recipecard() -> Response:
+        """Reserve the disabled Devvit ingestion endpoint for a future integration."""
+        if not resolved_settings.devvit_ingestion_enabled:
+            abort(404)
+        response = jsonify(error="Devvit ingestion is not implemented")
+        response.status_code = 501
+        return response
 
     return application
 
@@ -144,6 +161,3 @@ def _is_reddit_url(value: str) -> bool:
     return parsed.scheme in {"http", "https"} and (
         hostname == "reddit.com" or hostname.endswith(".reddit.com")
     )
-
-
-app = create_app()

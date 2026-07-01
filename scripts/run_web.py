@@ -1,14 +1,13 @@
-"""Run the local RecipeBot FastAPI delivery service."""
-
-import uvicorn
+"""Run the local RecipeBot Flask delivery service."""
 
 from app.config.settings import get_settings
+from app.web.server import create_app
 
 
 def main() -> None:
-    """Start Uvicorn with the configured local host and port."""
+    """Start Flask's local server with the configured host and port."""
     settings = get_settings()
-    uvicorn.run("app.web.server:app", host=settings.web_host, port=settings.web_port)
+    create_app(settings).run(host=settings.web_host, port=settings.web_port)
 
 
 if __name__ == "__main__":

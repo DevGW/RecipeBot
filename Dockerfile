@@ -26,4 +26,4 @@ RUN python -m pip install --upgrade pip \
 USER recipebot
 EXPOSE 8000
 
-CMD ["python", "-m", "scripts.run_web"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "app.web.server:create_app()"]

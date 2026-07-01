@@ -48,6 +48,21 @@ def test_production_web_is_loopback_only_and_artifacts_are_shared() -> None:
     assert "./artifacts:/app/artifacts" in services["worker"]["volumes"]
 
 
+def test_web_services_run_flask_with_gunicorn() -> None:
+    """Both container stacks must serve the Flask factory through Gunicorn."""
+    expected_command = [
+        "gunicorn",
+        "--bind",
+        "0.0.0.0:8000",
+        "app.web.server:create_app()",
+    ]
+
+    for compose_path in (DEVELOPMENT_COMPOSE, PRODUCTION_COMPOSE):
+        web = load_compose(compose_path)["services"]["web"]
+        assert web["command"] == expected_command
+        assert web["environment"]["DEVVIT_INGESTION_ENABLED"].endswith(":-false}")
+
+
 def test_bot_depends_on_compose_postgres() -> None:
     """The optional listener must wait for its Compose-managed database."""
     for compose_path in (DEVELOPMENT_COMPOSE, PRODUCTION_COMPOSE):

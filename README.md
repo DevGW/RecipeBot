@@ -1,6 +1,6 @@
 # RecipeBot
 
-RecipeBot turns normalized recipes into portable SVG, PNG, and PDF cards. It includes Postgres-backed jobs, an ImageMagick renderer, ZIP bundles, a small FastAPI delivery service, exact-command ingestion from Reddit, and private-message result delivery. It does not use an external task queue.
+RecipeBot turns normalized recipes into portable SVG, PNG, and PDF cards. It includes Postgres-backed jobs, an ImageMagick renderer, ZIP bundles, a small Flask delivery service, exact-command ingestion from Reddit, and private-message result delivery. It does not use an external task queue.
 
 ## Requirements
 
@@ -66,6 +66,8 @@ Start the local delivery service in another terminal:
 ```bash
 python -m scripts.run_web
 ```
+
+Flask is the web/API layer. The local script uses Flask's development server; Docker runs the same application factory with Gunicorn. The reserved `POST /internal/devvit/recipecard` endpoint remains unavailable by default (`DEVVIT_INGESTION_ENABLED=false`) and does not ingest requests yet.
 
 Look up the completed job's `card_id` when needed:
 

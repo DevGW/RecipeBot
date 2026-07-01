@@ -28,7 +28,7 @@ services:
 
   web:
     build: .
-    command: ["python", "-m", "scripts.run_web"]
+    command: ["gunicorn", "--bind", "0.0.0.0:8000", "app.web.server:create_app()"]
     restart: unless-stopped
     env_file: .env
     environment:
@@ -37,6 +37,7 @@ services:
       ARTIFACT_BASE_URL: https://recipebot.devgw.com/cards
       WEB_HOST: 0.0.0.0
       WEB_PORT: 8000
+      DEVVIT_INGESTION_ENABLED: ${DEVVIT_INGESTION_ENABLED:-false}
     depends_on:
       postgres:
         condition: service_healthy

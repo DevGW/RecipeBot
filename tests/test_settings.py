@@ -16,6 +16,7 @@ def test_settings_load_from_environment(monkeypatch) -> None:
     monkeypatch.setenv("RSVG_CONVERT_BINARY", "/usr/local/bin/rsvg-convert")
     monkeypatch.setenv("WEB_HOST", "0.0.0.0")
     monkeypatch.setenv("WEB_PORT", "8097")
+    monkeypatch.setenv("DEVVIT_INGESTION_ENABLED", "true")
     monkeypatch.setenv("REDDIT_CLIENT_ID", "client-id")
     monkeypatch.setenv("REDDIT_CLIENT_SECRET", "client-secret")
     monkeypatch.setenv("REDDIT_USERNAME", "recipebot")
@@ -40,6 +41,7 @@ def test_settings_load_from_environment(monkeypatch) -> None:
     assert settings.rsvg_convert_binary == "/usr/local/bin/rsvg-convert"
     assert settings.web_host == "0.0.0.0"
     assert settings.web_port == 8097
+    assert settings.devvit_ingestion_enabled is True
     assert settings.reddit_client_id == "client-id"
     assert settings.reddit_client_secret == "client-secret"
     assert settings.reddit_username == "recipebot"

@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     )
     web_host: str = Field(default="127.0.0.1", validation_alias="WEB_HOST")
     web_port: int = Field(default=8000, ge=1, le=65535, validation_alias="WEB_PORT")
+    devvit_ingestion_enabled: bool = Field(
+        default=False,
+        validation_alias="DEVVIT_INGESTION_ENABLED",
+    )
     reddit_client_id: str | None = Field(default=None, validation_alias="REDDIT_CLIENT_ID")
     reddit_client_secret: str | None = Field(
         default=None,

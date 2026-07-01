@@ -20,7 +20,7 @@ RSVG_CONVERT_BINARY=rsvg-convert
 REDDIT_DRY_RUN=true
 ```
 
-If the password contains URL-reserved characters, percent-encode it only in `DATABASE_URL`. `WEB_HOST=0.0.0.0` binds Uvicorn inside its container; Compose still publishes the service only as `127.0.0.1:8097:8000` on Hemlock.
+If the password contains URL-reserved characters, percent-encode it only in `DATABASE_URL`. Gunicorn binds the Flask application to `0.0.0.0:8000` inside its container; Compose still publishes the service only as `127.0.0.1:8097:8000` on Hemlock.
 
 Prepare the bind-mounted artifact directory for the non-root application user:
 

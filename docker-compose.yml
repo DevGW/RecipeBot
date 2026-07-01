@@ -51,13 +51,14 @@ services:
 
   web:
     build: .
-    command: ["python", "-m", "scripts.run_web"]
+    command: ["gunicorn", "--bind", "0.0.0.0:8000", "app.web.server:create_app()"]
     environment:
       DATABASE_URL: postgresql+psycopg://recipebot:recipebot@postgres:5432/recipebot
       ARTIFACT_ROOT: /app/artifacts
       ARTIFACT_BASE_URL: https://recipebot.devgw.com/cards
       WEB_HOST: 0.0.0.0
       WEB_PORT: 8000
+      DEVVIT_INGESTION_ENABLED: ${DEVVIT_INGESTION_ENABLED:-false}
     depends_on:
       migrate:
         condition: service_completed_successfully
