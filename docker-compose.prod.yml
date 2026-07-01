@@ -1,0 +1,53 @@
+services:
+  migrate:
+    build: .
+    command: ["alembic", "upgrade", "head"]
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://recipebot:CHANGE_ME@host.docker.internal:5432/recipebot}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  web:
+    build: .
+    command: ["python", "-m", "scripts.run_web"]
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://recipebot:CHANGE_ME@host.docker.internal:5432/recipebot}
+      ARTIFACT_ROOT: /app/artifacts
+      ARTIFACT_BASE_URL: https://recipebot.devgw.com/cards
+      WEB_HOST: 0.0.0.0
+      WEB_PORT: 8000
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:8097:8000"
+    volumes:
+      - ./artifacts:/app/artifacts:ro
+
+  worker:
+    build: .
+    command: ["python", "-m", "app.jobs.worker"]
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://recipebot:CHANGE_ME@host.docker.internal:5432/recipebot}
+      ARTIFACT_ROOT: /app/artifacts
+      ARTIFACT_BASE_URL: https://recipebot.devgw.com/cards
+      IMAGEMAGICK_BINARY: convert
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./artifacts:/app/artifacts
+
+  bot:
+    profiles: ["reddit"]
+    build: .
+    command: ["python", "-m", "scripts.run_reddit_listener"]
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://recipebot:CHANGE_ME@host.docker.internal:5432/recipebot}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

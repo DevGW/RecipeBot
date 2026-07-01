@@ -56,6 +56,13 @@ def test_health_route(web_client: TestClient) -> None:
     assert response.json() == {"status": "ok"}
 
 
+def test_health_route_supports_head_checks(web_client: TestClient) -> None:
+    """Production health checks should support the documented curl HEAD request."""
+    response = web_client.head("/health")
+
+    assert response.status_code == 200
+
+
 def test_landing_page_shows_preview_and_downloads(web_client: TestClient) -> None:
     """The landing page should safely show title, source, preview, and artifact links."""
     response = web_client.get("/cards/6")

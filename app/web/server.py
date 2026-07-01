@@ -50,7 +50,7 @@ def create_app(
             raise HTTPException(status_code=404, detail="artifact not found")
         return FileResponse(artifact, media_type=media_type, filename=filename)
 
-    @application.get("/health")
+    @application.api_route("/health", methods=["GET", "HEAD"])
     def health() -> dict[str, str]:
         """Report that the HTTP process is ready to serve requests."""
         return {"status": "ok"}

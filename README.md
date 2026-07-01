@@ -8,7 +8,7 @@ RecipeBot turns normalized recipes into portable SVG, PNG, and PDF cards. It inc
 - ImageMagick 7 (`magick` on your `PATH`)
 - Docker, if you want to run the container stack
 
-## Setup
+## Local development setup
 
 Create a virtual environment and install the project with its development tools:
 
@@ -16,7 +16,7 @@ Create a virtual environment and install the project with its development tools:
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e '.[dev]'
-cp .env.example .env
+cp .env.development.example .env
 ```
 
 Start Postgres and apply the migrations:
@@ -26,7 +26,7 @@ docker compose up -d postgres
 alembic upgrade head
 ```
 
-Configuration is loaded from environment variables or `.env`; see `.env.example` for all supported values.
+Configuration is loaded from environment variables or `.env`. Use `.env.development.example` locally; `.env.example` contains the Hemlock production shape.
 
 ## Tests
 
@@ -80,7 +80,7 @@ To run the single-process worker continuously instead, use:
 python -m app.jobs.worker
 ```
 
-The messaging lifecycle state is reserved for later delivery behavior.
+Reddit-ingested jobs use the messaging lifecycle state for durable DM delivery before completion; synthetic jobs without a requester skip that step.
 
 ## Reddit command listener
 
@@ -125,7 +125,7 @@ For a safe local delivery check:
 2. Use a dedicated Reddit test account, set `REDDIT_DRY_RUN=false`, and leave public fallback disabled.
 3. Run `python -m scripts.run_worker_once`, then inspect the `messages` row for `sent` or `failed` status.
 
-## Docker runtime
+## Development Docker runtime
 
 Build the application image and start Postgres:
 
@@ -154,6 +154,14 @@ The Reddit listener is behind an explicit Compose profile and remains off during
 docker compose --profile reddit up bot
 ```
 
+These commands use `docker-compose.yml`, including its development-only Postgres container. Do not use that Compose file for Hemlock production.
+
+## Hemlock production
+
+Hemlock uses [docker-compose.prod.yml](docker-compose.prod.yml), which defines only `migrate`, `web`, `worker`, and the optional profiled `bot`. It does not define or publish Postgres; every database client connects to Hemlock's existing Postgres through `host.docker.internal`.
+
+The repeatable database, environment, deployment, and rollback-safe update procedure is documented in [docs/hemlock-deploy.md](docs/hemlock-deploy.md). The production web mapping is exactly `127.0.0.1:8097:8000`, leaving Nginx as the only public entry point.
+
 ## Hemlock / Nginx reverse proxy
 
 Configure the Hemlock route with:
@@ -179,4 +187,4 @@ server {
 }
 ```
 
-Set `ARTIFACT_BASE_URL=https://recipebot.devgw.com/cards` so URLs written to `metadata.json` use the public hostname. Web authentication and Reddit delivery behavior are intentionally not implemented yet.
+Set `ARTIFACT_BASE_URL=https://recipebot.devgw.com/cards` so URLs written to `metadata.json` use the public hostname. Nginx remains host-managed and is never started or modified by Compose.
