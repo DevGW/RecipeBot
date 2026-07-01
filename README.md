@@ -5,7 +5,8 @@ RecipeBot turns normalized recipes into portable SVG, PNG, and PDF cards. It inc
 ## Requirements
 
 - Python 3.12+
-- ImageMagick 7 (`magick` on your `PATH`)
+- ImageMagick (`magick` or configured equivalent) for PNG→PDF
+- librsvg (`rsvg-convert` on your `PATH`) for SVG→PNG
 - Docker, if you want to run the container stack
 
 ## Local development setup
@@ -23,10 +24,11 @@ Start Postgres and apply the migrations:
 
 ```bash
 docker compose up -d postgres
+export DATABASE_URL=postgresql+psycopg://recipebot:recipebot@127.0.0.1:55432/recipebot
 alembic upgrade head
 ```
 
-Configuration is loaded from environment variables or `.env`. Use `.env.development.example` locally; `.env.example` contains the Hemlock production shape.
+Configuration is loaded from environment variables or `.env`. Use `.env.development.example` locally; its `DATABASE_URL` is the address used inside Compose. Host-run tools and scripts should override it with the loopback URL shown above. `.env.example` contains the Hemlock production shape.
 
 ## Tests
 
@@ -40,14 +42,13 @@ pytest
 python -m scripts.render_sample
 ```
 
-The command writes `card.svg`, `card.png`, and `card.pdf` to `artifacts/sample-card/` and prints their absolute paths. Set `IMAGEMAGICK_BINARY` if ImageMagick is installed under a different executable name.
+The command writes `card.svg`, `card.png`, and `card.pdf` to `artifacts/sample-card/` and prints their absolute paths. Set `IMAGEMAGICK_BINARY` or `RSVG_CONVERT_BINARY` when either executable uses a nonstandard name or path.
 
 ## Durable job worker
 
-Start Postgres and apply all migrations:
+With the local database URL exported during setup, apply migrations whenever the schema changes:
 
 ```bash
-docker compose up -d postgres
 alembic upgrade head
 ```
 
@@ -140,7 +141,7 @@ In another terminal, start the web and worker services. Compose automatically ru
 docker compose up web worker
 ```
 
-The web container listens on port `8000` internally and is published only at `127.0.0.1:8097`. Worker and web containers share the host `./artifacts` directory. To create a demo job against the Compose database, run:
+The web container listens on port `8000` internally and is published only at `127.0.0.1:8097`. Postgres remains internal at `postgres:5432` and is published for host tools only at `127.0.0.1:${POSTGRES_HOST_PORT:-55432}`. Worker and web containers share the host `./artifacts` directory. To create a demo job against the Compose database, run:
 
 ```bash
 docker compose run --rm worker python -m scripts.create_sample_job
@@ -154,13 +155,15 @@ The Reddit listener is behind an explicit Compose profile and remains off during
 docker compose --profile reddit up bot
 ```
 
-These commands use `docker-compose.yml`, including its development-only Postgres container. Do not use that Compose file for Hemlock production.
+These commands use `docker-compose.yml` and its development data volume. Use the production file on Hemlock.
 
 ## Hemlock production
 
-Hemlock uses [docker-compose.prod.yml](docker-compose.prod.yml), which defines only `migrate`, `web`, `worker`, and the optional profiled `bot`. It does not define or publish Postgres; every database client connects to Hemlock's existing Postgres through `host.docker.internal`.
+Hemlock uses [docker-compose.prod.yml](docker-compose.prod.yml), including an isolated Postgres container, `migrate`, `web`, `worker`, and the optional profiled `bot`. Application containers connect through `postgres:5432`; host access is loopback-only on port `55432` by default, so Hemlock's existing Postgres on host port `5432` is unaffected.
 
 The repeatable database, environment, deployment, and rollback-safe update procedure is documented in [docs/hemlock-deploy.md](docs/hemlock-deploy.md). The production web mapping is exactly `127.0.0.1:8097:8000`, leaving Nginx as the only public entry point.
+
+The application image installs ImageMagick, deterministic fonts, and `librsvg2-bin`. SVG rasterization calls `rsvg-convert` directly; ImageMagick remains responsible for PDF generation.
 
 ## Hemlock / Nginx reverse proxy
 

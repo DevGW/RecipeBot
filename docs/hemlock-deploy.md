@@ -1,47 +1,34 @@
 # Hemlock production deployment
 
-Hemlock runs RecipeBot's containers, Nginx, and the existing host-level Postgres server. Production uses `docker-compose.prod.yml`; that file deliberately has no `postgres` service and publishes only the web service on Hemlock's loopback interface.
+Hemlock runs RecipeBot with `docker-compose.prod.yml`. The production stack owns its Postgres container and data volume; it does not use or modify Hemlock's existing host-level Postgres server.
 
-## One-time Postgres setup
-
-Connect to the host Postgres server as an administrator and create the application role and database:
-
-```sql
-CREATE USER recipebot WITH PASSWORD 'CHANGE_ME_STRONG';
-CREATE DATABASE recipebot OWNER recipebot;
-GRANT ALL PRIVILEGES ON DATABASE recipebot TO recipebot;
-```
-
-Replace the placeholder with a strong URL-safe password. If the password contains URL-reserved characters, percent-encode it in `DATABASE_URL`.
-
-Postgres must listen on a host address reachable through Docker's host gateway, not only on its Unix socket or `127.0.0.1`. Set `listen_addresses` in `postgresql.conf` to the appropriate Hemlock bridge/gateway address (or another deliberately selected host address). Do not expose Postgres broadly to the internet.
-
-If the current client rules do not cover the Docker network, add a narrowly scoped `pg_hba.conf` entry using Hemlock's actual Docker subnet. For example, after confirming the subnet rather than copying it blindly:
-
-```conf
-host    recipebot    recipebot    172.17.0.0/16    scram-sha-256
-```
-
-Inspect Docker's network configuration to find the correct subnet and restrict any host firewall rule to that subnet. Restart Postgres after changing `postgresql.conf` or `pg_hba.conf`:
-
-```bash
-sudo systemctl restart postgresql
-```
+RecipeBot Postgres listens inside Docker as `postgres:5432`. Compose publishes it only to `127.0.0.1:${POSTGRES_HOST_PORT:-55432}`, so an existing host Postgres on port `5432` does not conflict and the RecipeBot database is not publicly exposed.
 
 ## Production environment
 
-From `/opt/recipebot`, copy `.env.example` to `.env`, restrict its permissions, and replace every placeholder. The required database connection uses Docker's host gateway name:
+From `/opt/recipebot`, copy `.env.example` to `.env`, restrict its permissions, and replace `CHANGE_ME_STRONG` in both `POSTGRES_PASSWORD` and `DATABASE_URL` with the same strong URL-safe password:
 
 ```env
-DATABASE_URL=postgresql+psycopg://recipebot:CHANGE_ME@host.docker.internal:5432/recipebot
+POSTGRES_HOST_PORT=55432
+POSTGRES_PASSWORD=CHANGE_ME_STRONG
+DATABASE_URL=postgresql+psycopg://recipebot:CHANGE_ME_STRONG@postgres:5432/recipebot
 ARTIFACT_ROOT=/app/artifacts
 ARTIFACT_BASE_URL=https://recipebot.devgw.com/cards
 WEB_HOST=0.0.0.0
 WEB_PORT=8000
+RSVG_CONVERT_BINARY=rsvg-convert
 REDDIT_DRY_RUN=true
 ```
 
-`WEB_HOST=0.0.0.0` binds Uvicorn inside its container. Compose still publishes the service only as `127.0.0.1:8097:8000` on Hemlock.
+If the password contains URL-reserved characters, percent-encode it only in `DATABASE_URL`. `WEB_HOST=0.0.0.0` binds Uvicorn inside its container; Compose still publishes the service only as `127.0.0.1:8097:8000` on Hemlock.
+
+Prepare the bind-mounted artifact directory for the non-root application user:
+
+```bash
+sudo mkdir -p artifacts/jobs
+sudo chown -R 10001:10001 artifacts
+sudo chmod -R u+rwX artifacts
+```
 
 ## Deploy or update
 
@@ -51,6 +38,7 @@ Use these commands exactly from the repository checkout:
 cd /opt/recipebot
 git pull
 sudo docker compose -f docker-compose.prod.yml build
+sudo docker compose -f docker-compose.prod.yml up -d postgres
 sudo docker compose -f docker-compose.prod.yml run --rm migrate
 sudo docker compose -f docker-compose.prod.yml up -d web worker
 sudo docker compose -f docker-compose.prod.yml ps
@@ -58,17 +46,31 @@ curl -I http://127.0.0.1:8097/health
 curl -I https://recipebot.devgw.com/health
 ```
 
+After Dockerfile dependency changes, including the librsvg addition, force a clean rebuild of both runtime images:
+
+```bash
+sudo docker compose -f docker-compose.prod.yml build --no-cache worker web
+```
+
+Confirm the SVG rasterizer is installed before processing jobs:
+
+```bash
+sudo docker compose -f docker-compose.prod.yml run --rm worker rsvg-convert --version
+```
+
+The shared Docker image includes ImageMagick for PNG→PDF conversion, `librsvg2-bin` for direct SVG→PNG conversion, and the fonts used by the card layout.
+
 Enable the optional Reddit listener only after its credentials and allowlist are configured:
 
 ```bash
 sudo docker compose -f docker-compose.prod.yml --profile reddit up -d bot
 ```
 
-The production Compose file never creates or publishes Postgres. `migrate`, `web`, `worker`, and `bot` each map `host.docker.internal` to Docker's host gateway and use the host database URL from `.env`.
+The bot, migration, worker, and web services all use the internal `postgres:5432` address and wait for the database health check. Host tools can connect through `127.0.0.1:55432` by default.
 
 ## Existing Nginx vhost
 
-Nginx remains host-managed and is not part of either Compose file. The `recipebot.devgw.com` location must proxy to the loopback-only container port:
+Nginx remains host-managed and is not part of either Compose file. The `recipebot.devgw.com` location must proxy to the loopback-only web port:
 
 ```nginx
 location / {
@@ -79,4 +81,8 @@ location / {
 }
 ```
 
-Do not change the production port mapping to `0.0.0.0:8097`; Nginx is the public entry point.
+Do not change the production port mappings to `0.0.0.0`; Nginx is the public entry point.
+
+## Advanced external Postgres option
+
+Operators who intentionally want an external database may override `DATABASE_URL` and remove or disable the Compose `postgres` service in their own advanced deployment overlay. That is not the default or supported Hemlock path; the repository-managed production deployment requires no host Postgres configuration changes.

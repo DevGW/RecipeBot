@@ -24,6 +24,7 @@ def render_card(
     output_directory: Path,
     *,
     imagemagick_binary: str = "magick",
+    rsvg_convert_binary: str = "rsvg-convert",
 ) -> RenderedCardPaths:
     """Write SVG, PNG, and PDF artifacts for a validated recipe specification."""
     output_directory.mkdir(parents=True, exist_ok=True)
@@ -33,6 +34,6 @@ def render_card(
         pdf=output_directory / "card.pdf",
     )
     paths.svg.write_text(render_recipe_svg(spec), encoding="utf-8")
-    render_svg_to_png(paths.svg, paths.png, binary=imagemagick_binary)
+    render_svg_to_png(paths.svg, paths.png, binary=rsvg_convert_binary)
     render_png_to_pdf(paths.png, paths.pdf, binary=imagemagick_binary)
     return paths

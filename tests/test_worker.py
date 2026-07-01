@@ -95,6 +95,7 @@ def test_process_job_orchestrates_mocked_renderer(tmp_path: Path) -> None:
         spec,
         tmp_path / "jobs" / "41",
         imagemagick_binary="magick",
+        rsvg_convert_binary="rsvg-convert",
     )
     assert [call.args for call in worker._transition.call_args_list] == [
         (41, JobState.RENDERING),

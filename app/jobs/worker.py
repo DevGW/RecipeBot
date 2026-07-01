@@ -78,6 +78,7 @@ class JobWorker:
             spec,
             output_directory,
             imagemagick_binary=self.settings.imagemagick_binary,
+            rsvg_convert_binary=self.settings.rsvg_convert_binary,
         )
 
         self._transition(job_id, JobState.STORING)

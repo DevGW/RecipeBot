@@ -11,7 +11,7 @@ services:
       timeout: 5s
       retries: 10
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-55432}:5432"
     volumes:
       - recipebot-postgres:/var/lib/postgresql/data
 
@@ -32,6 +32,7 @@ services:
       ARTIFACT_ROOT: /app/artifacts
       ARTIFACT_BASE_URL: https://recipebot.devgw.com/cards
       IMAGEMAGICK_BINARY: convert
+      RSVG_CONVERT_BINARY: rsvg-convert
       REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID:-}
       REDDIT_CLIENT_SECRET: ${REDDIT_CLIENT_SECRET:-}
       REDDIT_USERNAME: ${REDDIT_USERNAME:-}
@@ -43,6 +44,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
     volumes:
       - ./artifacts:/app/artifacts
 
@@ -84,6 +87,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
 
 volumes:
   recipebot-postgres:

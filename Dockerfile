@@ -10,6 +10,7 @@ RUN apt-get update \
         fonts-liberation \
         imagemagick \
         libpq5 \
+        librsvg2-bin \
     && sed -i 's/rights="none" pattern="PDF"/rights="write" pattern="PDF"/' \
         /etc/ImageMagick-6/policy.xml \
     && rm -rf /var/lib/apt/lists/*

@@ -13,6 +13,7 @@ def test_settings_load_from_environment(monkeypatch) -> None:
     monkeypatch.setenv("ARTIFACT_ROOT", "/tmp/recipebot-artifacts")
     monkeypatch.setenv("ARTIFACT_BASE_URL", "https://cards.example.test")
     monkeypatch.setenv("IMAGEMAGICK_BINARY", "/usr/local/bin/magick")
+    monkeypatch.setenv("RSVG_CONVERT_BINARY", "/usr/local/bin/rsvg-convert")
     monkeypatch.setenv("WEB_HOST", "0.0.0.0")
     monkeypatch.setenv("WEB_PORT", "8097")
     monkeypatch.setenv("REDDIT_CLIENT_ID", "client-id")
@@ -36,6 +37,7 @@ def test_settings_load_from_environment(monkeypatch) -> None:
     assert str(settings.artifact_root) == "/tmp/recipebot-artifacts"
     assert settings.artifact_base_url == "https://cards.example.test"
     assert settings.imagemagick_binary == "/usr/local/bin/magick"
+    assert settings.rsvg_convert_binary == "/usr/local/bin/rsvg-convert"
     assert settings.web_host == "0.0.0.0"
     assert settings.web_port == 8097
     assert settings.reddit_client_id == "client-id"

@@ -58,6 +58,7 @@ def main() -> None:
         build_sample_recipe(),
         output_directory,
         imagemagick_binary=settings.imagemagick_binary,
+        rsvg_convert_binary=settings.rsvg_convert_binary,
     )
     for path in (paths.svg, paths.png, paths.pdf):
         print(path.resolve())

@@ -38,6 +38,10 @@ class Settings(BaseSettings):
         validation_alias="ARTIFACT_BASE_URL",
     )
     imagemagick_binary: str = Field(default="magick", validation_alias="IMAGEMAGICK_BINARY")
+    rsvg_convert_binary: str = Field(
+        default="rsvg-convert",
+        validation_alias="RSVG_CONVERT_BINARY",
+    )
     web_host: str = Field(default="127.0.0.1", validation_alias="WEB_HOST")
     web_port: int = Field(default=8000, ge=1, le=65535, validation_alias="WEB_PORT")
     reddit_client_id: str | None = Field(default=None, validation_alias="REDDIT_CLIENT_ID")
