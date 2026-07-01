@@ -10,6 +10,10 @@ import {
   type RecipeBotSendResult,
 } from "./recipebotClient.js";
 import {
+  replyToCommandComment,
+  type RedditCommentSubmitter,
+} from "./redditReply.js";
+import {
   buildRecipeBotPayload,
   isCommentId,
   type RedditSourceReader,
@@ -26,6 +30,7 @@ export interface CommentTriggerDependencies {
   getSetting(name: string): Promise<unknown>;
   logger: RecipeBotLogger;
   reddit: RedditSourceReader;
+  redditReplier: RedditCommentSubmitter;
   sendRequest(
     payload: RecipeBotPayload,
     config: RecipeBotClientConfig,
@@ -50,7 +55,7 @@ export function serializeTriggerError(error: unknown): {
 
 /** Run the onCommentCreate trigger after the request body is parsed. */
 export async function handleOnCommentCreateTrigger(
-  input: OnCommentCreateRequest,
+  input: CommentCreateEvent,
   dependencies: CommentTriggerDependencies,
 ): Promise<TriggerResponse> {
   try {
@@ -116,6 +121,12 @@ export async function handleCommentCreate(
       commandCommentId: payload.command_comment_id,
       subreddit: payload.subreddit,
     });
+    await replyToCommandComment(
+      payload.command_comment_id,
+      result.response.card_url,
+      dependencies.redditReplier,
+      dependencies.logger,
+    );
     return "ok";
   } catch (error) {
     dependencies.logger.error("RecipeBot comment trigger failed safely", {

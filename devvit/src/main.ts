@@ -13,6 +13,7 @@ const app = createRecipeBotApp({
   getSetting: async (name) => await settings.get(name),
   logger: console,
   reddit,
+  redditReplier: reddit,
   sendRequest: sendRecipeCardRequest,
 });
 
