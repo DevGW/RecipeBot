@@ -1,6 +1,6 @@
 {
   "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
-  "name": "recipebot-devvit",
+  "name": "recipebot-devgw",
   "server": {
     "dir": "dist/server",
     "entry": "index.cjs"
@@ -8,7 +8,9 @@
   "permissions": {
     "http": {
       "enable": true,
-      "domains": ["recipebot.devgw.com"]
+      "domains": [
+        "recipebot.devgw.com"
+      ]
     },
     "reddit": true
   },
@@ -30,11 +32,14 @@
     }
   },
   "dev": {
-    "subreddit": "RecipeBotTest"
+    "subreddit": "recipebot_devgw_dev"
   },
   "scripts": {
     "build": "npm run build",
     "dev": "npm run build -- --watch"
   },
-  "sourceIgnores": ["tests/", "coverage/"]
+  "sourceIgnores": [
+    "tests/",
+    "coverage/"
+  ]
 }
