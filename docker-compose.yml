@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: recipebot
+      POSTGRES_USER: recipebot
+      POSTGRES_PASSWORD: recipebot
+    ports:
+      - "5432:5432"
+    volumes:
+      - recipebot-postgres:/var/lib/postgresql/data
+
+volumes:
+  recipebot-postgres:

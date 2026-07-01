@@ -5,10 +5,12 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+*.egg-info/
 
 # Environment
 .env
 .env.*
+!.env.example
 
 # Build/output
 dist/
