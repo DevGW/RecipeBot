@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "esbuild src/main.ts --bundle --platform=node --format=cjs --target=node22 --outfile=dist/server/index.cjs && mkdir -p dist/server/dist/server && cp dist/server/index.cjs dist/server/dist/server/index.cjs",
+    "build": "node scripts/build-server.mjs",
+    "dev": "node scripts/build-server.mjs --watch",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

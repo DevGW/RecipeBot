@@ -62,6 +62,37 @@ def test_health_get_and_head(web_client: FlaskClient) -> None:
     assert head_response.data == b""
 
 
+def test_privacy_get_and_head(web_client: FlaskClient) -> None:
+    """The privacy policy should be a public HTML page."""
+    get_response = web_client.get("/privacy")
+    head_response = web_client.head("/privacy")
+    html = get_response.get_data(as_text=True)
+
+    assert get_response.status_code == 200
+    assert get_response.content_type.startswith("text/html")
+    assert "Privacy Policy" in html
+    assert "does not sell user data" in html
+    assert "does not use the data for advertising" in html
+    assert "PostgreSQL" in html
+    assert head_response.status_code == 200
+    assert head_response.data == b""
+
+
+def test_terms_get_and_head(web_client: FlaskClient) -> None:
+    """The terms page should be a public HTML page."""
+    get_response = web_client.get("/terms")
+    head_response = web_client.head("/terms")
+    html = get_response.get_data(as_text=True)
+
+    assert get_response.status_code == 200
+    assert get_response.content_type.startswith("text/html")
+    assert "Terms of Use" in html
+    assert "does not collect Reddit passwords" in html
+    assert "hosted under /cards/" in html
+    assert head_response.status_code == 200
+    assert head_response.data == b""
+
+
 def test_landing_page_get_and_head(web_client: FlaskClient) -> None:
     """The landing page should safely show preview, source, and download links."""
     get_response = web_client.get("/cards/6")

@@ -72,6 +72,16 @@ def create_app(
         """Report that the HTTP process is ready to serve requests."""
         return jsonify(status="ok")
 
+    @application.route("/privacy", methods=["GET", "HEAD"])
+    def privacy() -> Response:
+        """Return the public RecipeBot privacy policy."""
+        return Response(privacy_policy_html(), mimetype="text/html")
+
+    @application.route("/terms", methods=["GET", "HEAD"])
+    def terms() -> Response:
+        """Return the public RecipeBot terms of use."""
+        return Response(terms_of_use_html(), mimetype="text/html")
+
     @application.route("/cards/<int:card_id>", methods=["GET", "HEAD"])
     def card_landing_page(card_id: int) -> Response:
         """Show a plain HTML preview and download page for a completed card."""
@@ -213,4 +223,210 @@ def _is_reddit_url(value: str) -> bool:
     hostname = parsed.hostname or ""
     return parsed.scheme in {"http", "https"} and (
         hostname == "reddit.com" or hostname.endswith(".reddit.com")
+    )
+
+
+def _legal_page_html(page_title: str, sections: list[tuple[str, list[str]]]) -> str:
+    """Render a simple public legal page using the RecipeBot web style."""
+    section_html = []
+    for heading, paragraphs in sections:
+        paragraph_html = "".join(f"<p>{escape(paragraph)}</p>" for paragraph in paragraphs)
+        section_html.append(f"<section><h2>{escape(heading)}</h2>{paragraph_html}</section>")
+    body = "\n  ".join(section_html)
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{escape(page_title)} · RecipeBot</title>
+  <style>
+    body {{ margin: 0 auto; max-width: 960px; padding: 32px 20px 64px;
+            background: #fffdf8; color: #23211f; font-family: system-ui, sans-serif;
+            line-height: 1.6; }}
+    h1 {{ font-size: clamp(2rem, 5vw, 3rem); margin-bottom: 12px; }}
+    h2 {{ font-size: 1.25rem; margin: 28px 0 12px; }}
+    p {{ margin: 0 0 14px; }}
+    a {{ color: #7b4028; font-weight: 650; }}
+    nav {{ margin-bottom: 28px; }}
+  </style>
+</head>
+<body>
+  <nav aria-label="RecipeBot legal pages">
+    <a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms of Use</a>
+  </nav>
+  <h1>{escape(page_title)}</h1>
+  {body}
+</body>
+</html>
+"""
+
+
+def privacy_policy_html() -> str:
+    """Return the public RecipeBot privacy policy HTML document."""
+    return _legal_page_html(
+        "Privacy Policy",
+        [
+            (
+                "Overview",
+                [
+                    (
+                        "RecipeBot is a recipe-card service for Reddit communities. "
+                        "When a user posts the !recipecard command, RecipeBot receives "
+                        "Reddit command metadata and the parent post or comment recipe "
+                        "content needed to generate a recipe card artifact."
+                    ),
+                ],
+            ),
+            (
+                "Data we receive",
+                [
+                    (
+                        "RecipeBot receives Reddit command metadata such as the command "
+                        "comment id, requester username, subreddit, source type, source "
+                        "fullname, source title, source body, permalink, URL, and creation "
+                        "timestamp."
+                    ),
+                    (
+                        "RecipeBot uses that data only to generate recipe card artifacts "
+                        "and to operate the service."
+                    ),
+                ],
+            ),
+            (
+                "Data we store",
+                [
+                    (
+                        "RecipeBot stores job, source, and artifact metadata in PostgreSQL "
+                        "so requests can be processed, retried, and served reliably."
+                    ),
+                    (
+                        "Generated recipe card artifacts are hosted publicly under "
+                        "/cards/ with a numeric card id and related download routes."
+                    ),
+                ],
+            ),
+            (
+                "What we do not collect",
+                [
+                    "RecipeBot does not collect Reddit passwords.",
+                    (
+                        "RecipeBot does not ask users for Reddit OAuth client secrets "
+                        "or other Reddit account credentials."
+                    ),
+                ],
+            ),
+            (
+                "How we use data",
+                [
+                    "RecipeBot does not sell user data.",
+                    "RecipeBot does not use the data for advertising.",
+                    (
+                        "RecipeBot does not use tracking, analytics cookies, or third-party "
+                        "marketing tools on these public pages."
+                    ),
+                ],
+            ),
+            (
+                "Removal requests",
+                [
+                    (
+                        "Users and moderators may request removal of generated artifacts "
+                        "by contacting the RecipeBot developer through the Reddit app "
+                        "listing or Developer Portal contact path."
+                    ),
+                ],
+            ),
+        ],
+    )
+
+
+def terms_of_use_html() -> str:
+    """Return the public RecipeBot terms of use HTML document."""
+    return _legal_page_html(
+        "Terms of Use",
+        [
+            (
+                "Service",
+                [
+                    (
+                        "RecipeBot helps Reddit communities turn recipe posts and comments "
+                        "into downloadable recipe card artifacts. The service is triggered "
+                        "when a user posts the exact !recipecard command on Reddit."
+                    ),
+                ],
+            ),
+            (
+                "Reddit data used by the service",
+                [
+                    (
+                        "To provide the service, RecipeBot receives Reddit command metadata "
+                        "and the parent post or comment recipe content associated with the "
+                        "command."
+                    ),
+                    (
+                        "That data is used to generate recipe card artifacts and to store "
+                        "job, source, and artifact metadata in PostgreSQL."
+                    ),
+                ],
+            ),
+            (
+                "Hosted artifacts",
+                [
+                    (
+                        "Completed recipe cards are hosted under /cards/ with a numeric "
+                        "card id, along with related PNG, SVG, PDF, and ZIP download routes."
+                    ),
+                ],
+            ),
+            (
+                "Acceptable use",
+                [
+                    (
+                        "You may use RecipeBot only for lawful purposes and in accordance "
+                        "with Reddit's rules and the policies of the communities where the "
+                        "app is installed."
+                    ),
+                    (
+                        "Do not attempt to disrupt the service, access non-public endpoints "
+                        "without authorization, or misuse generated artifacts."
+                    ),
+                ],
+            ),
+            (
+                "Accounts and credentials",
+                [
+                    "RecipeBot does not collect Reddit passwords.",
+                    (
+                        "RecipeBot does not use Reddit OAuth client secrets provided by users."
+                    ),
+                ],
+            ),
+            (
+                "Data sharing and advertising",
+                [
+                    "RecipeBot does not sell user data.",
+                    "RecipeBot does not use the data for advertising.",
+                ],
+            ),
+            (
+                "Removal requests",
+                [
+                    (
+                        "If you want a generated artifact removed, contact the RecipeBot "
+                        "developer through the Reddit app listing or Developer Portal "
+                        "contact path."
+                    ),
+                ],
+            ),
+            (
+                "Changes",
+                [
+                    (
+                        "These terms may be updated as the service evolves. Continued use "
+                        "of RecipeBot after changes are posted means you accept the updated "
+                        "terms."
+                    ),
+                ],
+            ),
+        ],
     )

@@ -35,7 +35,7 @@
   },
   "scripts": {
     "build": "npm run build",
-    "dev": "npm run build -- --watch"
+    "dev": "npm run dev"
   },
   "sourceIgnores": [
     "tests/",
