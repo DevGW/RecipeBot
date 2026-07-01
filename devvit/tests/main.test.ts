@@ -1,10 +1,24 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@devvit/web/server", () => ({
+  context: { appSlug: "recipebot-devgw" },
+  settings: { get: async () => undefined },
+  reddit: {
+    getCommentById: async () => {
+      throw new Error("not used in this test");
+    },
+    getPostById: async () => {
+      throw new Error("not used in this test");
+    },
+  },
+}));
 
 import {
+  createRecipeBotApp,
   handleCommentCreate,
   handleOnCommentCreateTrigger,
   type CommentTriggerDependencies,
-} from "../src/main.js";
+} from "../src/serverApp.js";
 import { sendRecipeCardRequest } from "../src/recipebotClient.js";
 import type { RecipeBotLogger } from "../src/recipebotClient.js";
 import type {
@@ -138,6 +152,36 @@ describe("comment-created trigger", () => {
         cardUrl: "https://recipebot.devgw.com/cards/123",
       }),
     });
+  });
+});
+
+describe("Hono app route", () => {
+  it("exports a default app that is reachable", async () => {
+    const module = await import("../src/main.js");
+
+    expect(module.default).toBeDefined();
+    expect(typeof module.default.fetch).toBe("function");
+  });
+
+  it("POST /internal/triggers/comment-create returns 200 for a minimal request", async () => {
+    const app = createRecipeBotApp(
+      dependencies({
+        RECIPEBOT_BACKEND_URL: "https://recipebot.devgw.com",
+        RECIPEBOT_WEBHOOK_SECRET: "secret",
+      }),
+    );
+
+    const response = await app.request("/internal/triggers/comment-create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        author: { name: "example_user" },
+        comment: { id: "t1_other", body: "not a command" },
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ status: "ignored" });
   });
 });
 
