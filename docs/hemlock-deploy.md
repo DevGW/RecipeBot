@@ -17,6 +17,10 @@ ARTIFACT_BASE_URL=https://recipebot.devgw.com/cards
 WEB_HOST=0.0.0.0
 WEB_PORT=8000
 RSVG_CONVERT_BINARY=rsvg-convert
+DEVVIT_INGESTION_ENABLED=true
+DEVVIT_WEBHOOK_SECRET=CHANGE_ME_TO_A_LONG_RANDOM_SECRET
+DEVVIT_REQUIRE_HMAC=true
+DEVVIT_SIGNATURE_TOLERANCE_SECONDS=300
 REDDIT_DRY_RUN=true
 ```
 
@@ -59,6 +63,21 @@ sudo docker compose -f docker-compose.prod.yml run --rm worker rsvg-convert --ve
 ```
 
 The shared Docker image includes ImageMagick for PNG→PDF conversion, `librsvg2-bin` for direct SVG→PNG conversion, and the fonts used by the card layout.
+
+## Devvit webhook
+
+The Devvit app is the preferred Reddit adapter. It calls `POST https://recipebot.devgw.com/internal/devvit/recipecard` after detecting `!recipecard`. Nginx proxies this route to the same loopback-only Flask/Gunicorn service; no additional public container port is required.
+
+Each request must include:
+
+```text
+X-RecipeBot-Timestamp: <Unix timestamp in seconds>
+X-RecipeBot-Signature: <lowercase hex HMAC SHA-256>
+```
+
+Compute the signature over the exact raw HTTP body using the message `<timestamp>.<raw_request_body>` and `DEVVIT_WEBHOOK_SECRET` as the key. RecipeBot rejects missing or invalid signatures and timestamps more than `DEVVIT_SIGNATURE_TOLERANCE_SECONDS` away from the server clock. Keep `DEVVIT_REQUIRE_HMAC=true`, synchronize the host clock, and configure the same strong secret in the Devvit app without committing or logging it.
+
+The endpoint is disabled by default. Set `DEVVIT_INGESTION_ENABLED=true` only after the secret is in place, then rebuild/restart `web`. Duplicate command comment ids safely return their existing Postgres job. The PRAW listener remains available only as an optional legacy profile.
 
 Enable the optional Reddit listener only after its credentials and allowlist are configured:
 

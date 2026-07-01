@@ -140,22 +140,3 @@ def test_devvit_endpoint_is_disabled_by_default(web_client: FlaskClient) -> None
     response = web_client.post("/internal/devvit/recipecard", json={"source": "test"})
 
     assert response.status_code == 404
-
-
-def test_devvit_endpoint_is_only_a_placeholder_when_enabled(tmp_path: Path) -> None:
-    """Enabling the reserved route must not perform ingestion before it exists."""
-    settings = Settings(
-        _env_file=None,
-        ARTIFACT_ROOT=tmp_path,
-        DEVVIT_INGESTION_ENABLED=True,
-    )
-    application = create_app(settings, card_loader=lambda _card_id: None)
-    application.config.update(TESTING=True)
-
-    response = application.test_client().post(
-        "/internal/devvit/recipecard",
-        json={"source": "test"},
-    )
-
-    assert response.status_code == 501
-    assert response.get_json() == {"error": "Devvit ingestion is not implemented"}

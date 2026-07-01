@@ -7,7 +7,8 @@ RecipeBot currently has three local boundaries:
 - The renderer creates deterministic SVG and delegates PNG/PDF conversion to ImageMagick.
 - The artifact service validates renderer output, writes metadata, and builds ZIP bundles.
 - The Flask service safely resolves completed card paths and delivers fixed artifact names.
-- The PRAW listener watches an explicit subreddit allowlist and ingests only exact commands.
+- The HMAC-authenticated Devvit endpoint is the preferred Reddit command adapter.
+- The PRAW listener remains an optional legacy adapter for exact-command ingestion.
 - The deterministic extractor turns Reddit source text into the existing renderer contract.
 - The delivery service durably records DM attempts and only uses public fallback when opted in.
 

@@ -19,6 +19,22 @@ def create_job(
     requester_username: str | None = None,
 ) -> Job:
     """Create a queued job or return the existing job for the same command comment."""
+    job, _created = create_job_with_status(
+        session,
+        command_comment_id,
+        source_item_id,
+        requester_username=requester_username,
+    )
+    return job
+
+
+def create_job_with_status(
+    session: Session,
+    command_comment_id: str,
+    source_item_id: int | None,
+    requester_username: str | None = None,
+) -> tuple[Job, bool]:
+    """Create a queued job and report whether this call inserted the record."""
     statement = (
         insert(Job)
         .values(
@@ -32,14 +48,14 @@ def create_job(
     )
     job = session.execute(statement).scalar_one_or_none()
     if job is not None:
-        return job
+        return job, True
 
     existing_job = session.scalar(
         select(Job).where(Job.command_comment_id == command_comment_id)
     )
     if existing_job is None:
         raise RuntimeError("job insert conflicted but the existing job could not be loaded")
-    return existing_job
+    return existing_job, False
 
 
 def get_job(session: Session, job_id: int) -> Job | None:

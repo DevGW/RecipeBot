@@ -6,24 +6,36 @@ from collections.abc import Callable
 from html import escape
 from urllib.parse import urlsplit
 
-from flask import Flask, Response, abort, jsonify, send_file
+from flask import Flask, Response, abort, current_app, jsonify, request, send_file
+from pydantic import ValidationError
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.config.settings import Settings, get_settings
 from app.db.models import Card
 from app.db.session import build_session_factory
+from app.devvit.auth import verify_signature
+from app.devvit.contracts import DevvitIngestionResult, DevvitRecipeCardRequest
+from app.devvit.ingestion import ingest_devvit_request
 from app.storage.artifacts import ArtifactPaths, read_metadata, resolve_card_artifacts
 
 CardLoader = Callable[[int], Card | None]
+DevvitIngestor = Callable[[DevvitRecipeCardRequest], DevvitIngestionResult]
+SessionFactory = sessionmaker[Session]
 
 
 def create_app(
     settings: Settings | None = None,
     *,
     card_loader: CardLoader | None = None,
+    devvit_ingestor: DevvitIngestor | None = None,
 ) -> Flask:
     """Create the Flask card-delivery application with injectable database access."""
     resolved_settings = settings or get_settings()
-    load_card = card_loader or _database_card_loader(resolved_settings)
+    session_factory = None
+    if card_loader is None or devvit_ingestor is None:
+        session_factory = build_session_factory(resolved_settings.database_url)
+    load_card = card_loader or _database_card_loader(session_factory)
+    ingest_from_devvit = devvit_ingestor or _database_devvit_ingestor(session_factory)
     application = Flask(__name__)
 
     def load_paths(card_id: int) -> ArtifactPaths:
@@ -134,25 +146,66 @@ def create_app(
 
     @application.post("/internal/devvit/recipecard")
     def devvit_recipecard() -> Response:
-        """Reserve the disabled Devvit ingestion endpoint for a future integration."""
+        """Authenticate and queue one normalized recipe-card request from Devvit."""
         if not resolved_settings.devvit_ingestion_enabled:
             abort(404)
-        response = jsonify(error="Devvit ingestion is not implemented")
-        response.status_code = 501
-        return response
+
+        raw_body = request.get_data(cache=True)
+        if resolved_settings.devvit_require_hmac and not verify_signature(
+            resolved_settings.devvit_webhook_secret,
+            request.headers.get("X-RecipeBot-Timestamp"),
+            request.headers.get("X-RecipeBot-Signature"),
+            raw_body,
+            tolerance_seconds=resolved_settings.devvit_signature_tolerance_seconds,
+        ):
+            response = jsonify(error="unauthorized")
+            response.status_code = 401
+            return response
+
+        try:
+            payload = DevvitRecipeCardRequest.model_validate(request.get_json(silent=True))
+        except ValidationError:
+            response = jsonify(error="invalid request body")
+            response.status_code = 400
+            return response
+
+        try:
+            result = ingest_from_devvit(payload)
+        except Exception as error:
+            current_app.logger.error(
+                "Devvit recipe-card ingestion failed (%s)",
+                type(error).__name__,
+            )
+            response = jsonify(error="ingestion failed")
+            response.status_code = 500
+            return response
+
+        card_url = f"{resolved_settings.artifact_base_url.rstrip('/')}/{result.job_id}"
+        return jsonify(
+            status="queued" if result.created else "existing",
+            job_id=result.job_id,
+            card_url=card_url,
+        )
 
     return application
 
 
-def _database_card_loader(settings: Settings) -> CardLoader:
-    session_factory = build_session_factory(settings.database_url)
-
+def _database_card_loader(session_factory: SessionFactory) -> CardLoader:
     def load_card(card_id: int) -> Card | None:
         """Load one card in a short-lived database session."""
         with session_factory() as session:
             return session.get(Card, card_id)
 
     return load_card
+
+
+def _database_devvit_ingestor(session_factory: SessionFactory) -> DevvitIngestor:
+    def ingest(payload: DevvitRecipeCardRequest) -> DevvitIngestionResult:
+        """Persist one Devvit request in a single database transaction."""
+        with session_factory.begin() as session:
+            return ingest_devvit_request(session, payload)
+
+    return ingest
 
 
 def _is_reddit_url(value: str) -> bool:

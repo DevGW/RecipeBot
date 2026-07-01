@@ -17,6 +17,9 @@ def test_settings_load_from_environment(monkeypatch) -> None:
     monkeypatch.setenv("WEB_HOST", "0.0.0.0")
     monkeypatch.setenv("WEB_PORT", "8097")
     monkeypatch.setenv("DEVVIT_INGESTION_ENABLED", "true")
+    monkeypatch.setenv("DEVVIT_WEBHOOK_SECRET", "test-webhook-secret")
+    monkeypatch.setenv("DEVVIT_REQUIRE_HMAC", "true")
+    monkeypatch.setenv("DEVVIT_SIGNATURE_TOLERANCE_SECONDS", "120")
     monkeypatch.setenv("REDDIT_CLIENT_ID", "client-id")
     monkeypatch.setenv("REDDIT_CLIENT_SECRET", "client-secret")
     monkeypatch.setenv("REDDIT_USERNAME", "recipebot")
@@ -42,6 +45,9 @@ def test_settings_load_from_environment(monkeypatch) -> None:
     assert settings.web_host == "0.0.0.0"
     assert settings.web_port == 8097
     assert settings.devvit_ingestion_enabled is True
+    assert settings.devvit_webhook_secret == "test-webhook-secret"
+    assert settings.devvit_require_hmac is True
+    assert settings.devvit_signature_tolerance_seconds == 120
     assert settings.reddit_client_id == "client-id"
     assert settings.reddit_client_secret == "client-secret"
     assert settings.reddit_username == "recipebot"
@@ -59,3 +65,13 @@ def test_settings_accept_json_subreddit_list(monkeypatch) -> None:
     monkeypatch.setenv("ENABLED_SUBREDDITS", '["recipes", "baking"]')
 
     assert Settings(_env_file=None).enabled_subreddits == ["recipes", "baking"]
+
+
+def test_devvit_security_defaults_are_closed() -> None:
+    """Devvit ingestion must default to disabled with a five-minute HMAC window."""
+    settings = Settings(_env_file=None)
+
+    assert settings.devvit_ingestion_enabled is False
+    assert settings.devvit_webhook_secret is None
+    assert settings.devvit_require_hmac is True
+    assert settings.devvit_signature_tolerance_seconds == 300

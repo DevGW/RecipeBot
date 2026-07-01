@@ -61,6 +61,11 @@ def test_web_services_run_flask_with_gunicorn() -> None:
         web = load_compose(compose_path)["services"]["web"]
         assert web["command"] == expected_command
         assert web["environment"]["DEVVIT_INGESTION_ENABLED"].endswith(":-false}")
+        assert web["environment"]["DEVVIT_WEBHOOK_SECRET"].endswith(":-}")
+        assert web["environment"]["DEVVIT_REQUIRE_HMAC"].endswith(":-true}")
+        assert web["environment"]["DEVVIT_SIGNATURE_TOLERANCE_SECONDS"].endswith(
+            ":-300}"
+        )
 
 
 def test_bot_depends_on_compose_postgres() -> None:
@@ -77,6 +82,10 @@ def test_environment_examples_use_container_database_and_safe_host_port() -> Non
         assert "POSTGRES_HOST_PORT=55432" in environment
         assert "@postgres:5432/recipebot" in environment
         assert "host.docker.internal" not in environment
+        assert "DEVVIT_INGESTION_ENABLED=false" in environment
+        assert "DEVVIT_WEBHOOK_SECRET=" in environment
+        assert "DEVVIT_REQUIRE_HMAC=true" in environment
+        assert "DEVVIT_SIGNATURE_TOLERANCE_SECONDS=300" in environment
 
     production = PRODUCTION_ENV.read_text(encoding="utf-8")
     assert "ARTIFACT_ROOT=/app/artifacts" in production

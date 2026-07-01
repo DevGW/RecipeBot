@@ -59,6 +59,9 @@ services:
       WEB_HOST: 0.0.0.0
       WEB_PORT: 8000
       DEVVIT_INGESTION_ENABLED: ${DEVVIT_INGESTION_ENABLED:-false}
+      DEVVIT_WEBHOOK_SECRET: ${DEVVIT_WEBHOOK_SECRET:-}
+      DEVVIT_REQUIRE_HMAC: ${DEVVIT_REQUIRE_HMAC:-true}
+      DEVVIT_SIGNATURE_TOLERANCE_SECONDS: ${DEVVIT_SIGNATURE_TOLERANCE_SECONDS:-300}
     depends_on:
       migrate:
         condition: service_completed_successfully

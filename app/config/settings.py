@@ -48,6 +48,19 @@ class Settings(BaseSettings):
         default=False,
         validation_alias="DEVVIT_INGESTION_ENABLED",
     )
+    devvit_webhook_secret: str | None = Field(
+        default=None,
+        validation_alias="DEVVIT_WEBHOOK_SECRET",
+    )
+    devvit_require_hmac: bool = Field(
+        default=True,
+        validation_alias="DEVVIT_REQUIRE_HMAC",
+    )
+    devvit_signature_tolerance_seconds: int = Field(
+        default=300,
+        ge=1,
+        validation_alias="DEVVIT_SIGNATURE_TOLERANCE_SECONDS",
+    )
     reddit_client_id: str | None = Field(default=None, validation_alias="REDDIT_CLIENT_ID")
     reddit_client_secret: str | None = Field(
         default=None,

@@ -67,7 +67,7 @@ Start the local delivery service in another terminal:
 python -m scripts.run_web
 ```
 
-Flask is the web/API layer. The local script uses Flask's development server; Docker runs the same application factory with Gunicorn. The reserved `POST /internal/devvit/recipecard` endpoint remains unavailable by default (`DEVVIT_INGESTION_ENABLED=false`) and does not ingest requests yet.
+Flask is the web/API layer. The local script uses Flask's development server; Docker runs the same application factory with Gunicorn.
 
 Look up the completed job's `card_id` when needed:
 
@@ -85,9 +85,51 @@ python -m app.jobs.worker
 
 Reddit-ingested jobs use the messaging lifecycle state for durable DM delivery before completion; synthetic jobs without a requester skip that step.
 
-## Reddit command listener
+## Devvit ingestion
 
-RecipeBot recognizes only a standalone `!recipecard` comment. Extra text, flags, partial words, deleted comments, and comments authored by the configured bot account are ignored. Ingestion records the requesting username so the worker can privately deliver completed results.
+Devvit is the preferred Reddit adapter. When its app detects an exact `!recipecard` command, it sends normalized source data to:
+
+```text
+POST /internal/devvit/recipecard
+```
+
+Enable the endpoint and configure a strong shared secret in the web service environment:
+
+```dotenv
+DEVVIT_INGESTION_ENABLED=true
+DEVVIT_WEBHOOK_SECRET=replace_with_a_long_random_secret
+DEVVIT_REQUIRE_HMAC=true
+DEVVIT_SIGNATURE_TOLERANCE_SECONDS=300
+```
+
+The endpoint is hidden with a 404 while disabled. With HMAC required, the Devvit app must send `X-RecipeBot-Timestamp` as Unix seconds and `X-RecipeBot-Signature` as lowercase hexadecimal HMAC SHA-256. The signed bytes are exactly:
+
+```text
+timestamp + "." + raw_request_body
+```
+
+The signature key is `DEVVIT_WEBHOOK_SECRET`. RecipeBot compares signatures in constant time and rejects requests outside the configured timestamp window. The JSON body contains the command comment id, requester, subreddit, source fullname/type/text, permalink, optional source URL/title, and source creation timestamp. Valid requests use the deterministic extractor and existing Postgres job service; repeated `command_comment_id` values return the existing job.
+
+```json
+{
+  "command_comment_id": "t1_command",
+  "requester_username": "example_user",
+  "subreddit": "recipes",
+  "source_type": "comment",
+  "source_fullname": "t1_parent",
+  "source_title": "Optional title",
+  "source_body": "Ingredients:\n- bread\nDirections:\n1. Toast.",
+  "source_permalink": "https://www.reddit.com/...",
+  "source_url": "https://www.reddit.com/...",
+  "created_utc": 1780000000
+}
+```
+
+Keep `DEVVIT_REQUIRE_HMAC=true` in production. The shared secret must be configured identically in RecipeBot and the Devvit app, and must not be committed or logged.
+
+## Legacy Reddit command listener
+
+The PRAW listener is retained as an optional legacy adapter and is no longer the preferred integration path. It recognizes only a standalone `!recipecard` comment. Extra text, flags, partial words, deleted comments, and comments authored by the configured bot account are ignored. Ingestion records the requesting username so the worker can privately deliver completed results.
 
 RecipeBot is an external PRAW bot, so Reddit API access and a traditional script-app credential are required. Review Reddit's [Responsible Builder Policy](https://support.reddithelp.com/hc/en-us/articles/42728983564564-Responsible-Builder-Policy), request access if required, and create a script application from [Reddit app preferences](https://www.reddit.com/prefs/apps). PRAW's [password-flow documentation](https://praw.readthedocs.io/en/stable/getting_started/authentication.html) explains the client id, secret, username, and password fields.
 

@@ -9,6 +9,7 @@ from app.db.models import Card, Job
 from app.jobs.service import (
     claim_next_queued_job,
     create_job,
+    create_job_with_status,
     mark_job_completed,
     mark_job_failed,
 )
@@ -29,6 +30,24 @@ def test_create_job_prevents_duplicate_command_comments() -> None:
     assert result is existing
     assert "ON CONFLICT (command_comment_id) DO NOTHING" in sql
     session.add.assert_not_called()
+
+
+def test_create_job_with_status_reports_new_insert() -> None:
+    """Callers should be able to distinguish a new job from an existing one."""
+    session = MagicMock(spec=Session)
+    inserted = Job(id=9, command_comment_id="t1_new", status=JobState.QUEUED.value)
+    session.execute.return_value.scalar_one_or_none.return_value = inserted
+
+    job, created = create_job_with_status(
+        session,
+        "t1_new",
+        source_item_id=3,
+        requester_username="reader",
+    )
+
+    assert job is inserted
+    assert created is True
+    session.scalar.assert_not_called()
 
 
 def test_claim_uses_oldest_first_order_and_skip_locked() -> None:
