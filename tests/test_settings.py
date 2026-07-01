@@ -22,6 +22,9 @@ def test_settings_load_from_environment(monkeypatch) -> None:
     monkeypatch.setenv("REDDIT_USER_AGENT", "RecipeBot tests")
     monkeypatch.setenv("REDDIT_COMMAND", "!recipecard")
     monkeypatch.setenv("REDDIT_DRY_RUN", "true")
+    monkeypatch.setenv("REDDIT_DM_RESULTS", "true")
+    monkeypatch.setenv("REDDIT_PUBLIC_FALLBACK_ON_DM_FAILURE", "false")
+    monkeypatch.setenv("REDDIT_PUBLIC_ACK_ON_QUEUE", "false")
 
     settings = Settings(_env_file=None)
 
@@ -42,6 +45,9 @@ def test_settings_load_from_environment(monkeypatch) -> None:
     assert settings.reddit_user_agent == "RecipeBot tests"
     assert settings.reddit_command == "!recipecard"
     assert settings.reddit_dry_run is True
+    assert settings.reddit_dm_results is True
+    assert settings.reddit_public_fallback_on_dm_failure is False
+    assert settings.reddit_public_ack_on_queue is False
 
 
 def test_settings_accept_json_subreddit_list(monkeypatch) -> None:

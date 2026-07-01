@@ -1,6 +1,6 @@
 # RecipeBot
 
-RecipeBot turns normalized recipes into portable SVG, PNG, and PDF cards. It includes Postgres-backed jobs, an ImageMagick renderer, ZIP bundles, a small FastAPI delivery service, and exact-command ingestion from Reddit. It does not send Reddit replies or DMs and does not use an external task queue.
+RecipeBot turns normalized recipes into portable SVG, PNG, and PDF cards. It includes Postgres-backed jobs, an ImageMagick renderer, ZIP bundles, a small FastAPI delivery service, exact-command ingestion from Reddit, and private-message result delivery. It does not use an external task queue.
 
 ## Requirements
 
@@ -84,7 +84,7 @@ The messaging lifecycle state is reserved for later delivery behavior.
 
 ## Reddit command listener
 
-RecipeBot recognizes only a standalone `!recipecard` comment. Extra text, flags, partial words, deleted comments, and comments authored by the configured bot account are ignored. Ingestion creates a Postgres job; it does not reply publicly or send a DM.
+RecipeBot recognizes only a standalone `!recipecard` comment. Extra text, flags, partial words, deleted comments, and comments authored by the configured bot account are ignored. Ingestion records the requesting username so the worker can privately deliver completed results.
 
 RecipeBot is an external PRAW bot, so Reddit API access and a traditional script-app credential are required. Review Reddit's [Responsible Builder Policy](https://support.reddithelp.com/hc/en-us/articles/42728983564564-Responsible-Builder-Policy), request access if required, and create a script application from [Reddit app preferences](https://www.reddit.com/prefs/apps). PRAW's [password-flow documentation](https://praw.readthedocs.io/en/stable/getting_started/authentication.html) explains the client id, secret, username, and password fields.
 
@@ -100,6 +100,9 @@ REDDIT_PASSWORD=your_bot_password
 REDDIT_USER_AGENT=RecipeBot/0.1 by u/your_bot_username
 REDDIT_COMMAND=!recipecard
 REDDIT_DRY_RUN=true
+REDDIT_DM_RESULTS=true
+REDDIT_PUBLIC_FALLBACK_ON_DM_FAILURE=false
+REDDIT_PUBLIC_ACK_ON_QUEUE=false
 ```
 
 `ENABLED_SUBREDDITS` is the complete allowlist; the listener combines only those names into the PRAW comment stream. Start it locally after Postgres is running and migrations are applied:
@@ -108,7 +111,19 @@ REDDIT_DRY_RUN=true
 python -m scripts.run_reddit_listener
 ```
 
-`REDDIT_DRY_RUN=true` keeps all Reddit-side writes disabled while still allowing source, recipe, and queued-job database records. This release has no Reddit write operations even when dry-run mode is false: no replies and no DMs are implemented.
+`REDDIT_DRY_RUN=true` keeps all Reddit-side writes disabled while still allowing source, recipe, queued-job, artifact, and queued-message database records. Use a dedicated test account and controlled subreddit before setting it to `false` locally.
+
+Completed Reddit jobs normally send the requester a private message containing the card landing page plus direct PNG, PDF, SVG, and ZIP links. Delivery attempts are stored in the `messages` table. A DM failure leaves the artifacts intact and fails the job unless `REDDIT_PUBLIC_FALLBACK_ON_DM_FAILURE=true`; with that explicit opt-in, RecipeBot replies to the original command with only the landing-page URL. The fallback is off by default.
+
+`REDDIT_PUBLIC_ACK_ON_QUEUE=true` optionally posts a short acknowledgement when a new command is queued. It is also off by default. Neither delivery option changes command parsing or accepts per-command flags.
+
+Password-flow script applications do not require manually selecting scopes in PRAW. For token-based configurations, private messages require the `privatemessages` scope, and the optional public reply/acknowledgement requires `submit`.
+
+For a safe local delivery check:
+
+1. Keep `REDDIT_DRY_RUN=true`, ingest a command, and run the worker. Confirm a `queued` DM record and generated artifacts.
+2. Use a dedicated Reddit test account, set `REDDIT_DRY_RUN=false`, and leave public fallback disabled.
+3. Run `python -m scripts.run_worker_once`, then inspect the `messages` row for `sent` or `failed` status.
 
 ## Docker runtime
 

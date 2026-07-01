@@ -49,10 +49,12 @@ def test_process_job_orchestrates_mocked_renderer(tmp_path: Path) -> None:
             pdf=tmp_path / "card.pdf",
         )
     )
+    delivery_service = MagicMock()
     worker = JobWorker(
         session_factory,
         Settings(_env_file=None, ARTIFACT_ROOT=tmp_path),
         renderer=renderer,
+        delivery_service=delivery_service,
     )
     spec = RecipeCardSpec(
         title="Worker Soup",
@@ -109,6 +111,7 @@ def test_process_job_orchestrates_mocked_renderer(tmp_path: Path) -> None:
         slug="worker-soup",
         source_url="https://reddit.com/r/recipes/comments/example",
     )
+    delivery_service.deliver_job.assert_called_once_with(41)
     mark_completed.assert_called_once_with(session, job, card)
 
 

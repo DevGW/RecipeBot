@@ -45,7 +45,13 @@ def ingest_command_comment(session: Session, comment: Any, settings: Settings) -
     user = _upsert_user(session, source.author) if source.author else None
     source_item = _upsert_source_item(session, source, subreddit, user)
     recipe = _upsert_recipe(session, source_item, source, extracted)
-    job = create_job(session, command_comment_id, source_item.id)
+    requester_username = str(getattr(comment.author, "name", comment.author))
+    job = create_job(
+        session,
+        command_comment_id,
+        source_item.id,
+        requester_username=requester_username,
+    )
 
     if settings.reddit_dry_run:
         logger.info(

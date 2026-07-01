@@ -12,13 +12,19 @@ from app.db.models import Card, Job
 from app.jobs.states import JobState
 
 
-def create_job(session: Session, command_comment_id: str, source_item_id: int | None) -> Job:
+def create_job(
+    session: Session,
+    command_comment_id: str,
+    source_item_id: int | None,
+    requester_username: str | None = None,
+) -> Job:
     """Create a queued job or return the existing job for the same command comment."""
     statement = (
         insert(Job)
         .values(
             command_comment_id=command_comment_id,
             source_item_id=source_item_id,
+            requester_username=requester_username,
             status=JobState.QUEUED.value,
         )
         .on_conflict_do_nothing(index_elements=[Job.command_comment_id])

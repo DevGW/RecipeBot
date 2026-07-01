@@ -53,6 +53,15 @@ class Settings(BaseSettings):
     )
     reddit_command: str = Field(default="!recipecard", validation_alias="REDDIT_COMMAND")
     reddit_dry_run: bool = Field(default=True, validation_alias="REDDIT_DRY_RUN")
+    reddit_dm_results: bool = Field(default=True, validation_alias="REDDIT_DM_RESULTS")
+    reddit_public_fallback_on_dm_failure: bool = Field(
+        default=False,
+        validation_alias="REDDIT_PUBLIC_FALLBACK_ON_DM_FAILURE",
+    )
+    reddit_public_ack_on_queue: bool = Field(
+        default=False,
+        validation_alias="REDDIT_PUBLIC_ACK_ON_QUEUE",
+    )
 
     @field_validator("enabled_subreddits", mode="before")
     @classmethod

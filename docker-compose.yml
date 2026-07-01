@@ -32,6 +32,14 @@ services:
       ARTIFACT_ROOT: /app/artifacts
       ARTIFACT_BASE_URL: https://recipebot.devgw.com/cards
       IMAGEMAGICK_BINARY: convert
+      REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID:-}
+      REDDIT_CLIENT_SECRET: ${REDDIT_CLIENT_SECRET:-}
+      REDDIT_USERNAME: ${REDDIT_USERNAME:-}
+      REDDIT_PASSWORD: ${REDDIT_PASSWORD:-}
+      REDDIT_USER_AGENT: ${REDDIT_USER_AGENT:-RecipeBot/0.1}
+      REDDIT_DRY_RUN: ${REDDIT_DRY_RUN:-true}
+      REDDIT_DM_RESULTS: ${REDDIT_DM_RESULTS:-true}
+      REDDIT_PUBLIC_FALLBACK_ON_DM_FAILURE: ${REDDIT_PUBLIC_FALLBACK_ON_DM_FAILURE:-false}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -70,6 +78,9 @@ services:
       REDDIT_USER_AGENT: ${REDDIT_USER_AGENT:-RecipeBot/0.1}
       REDDIT_COMMAND: ${REDDIT_COMMAND:-!recipecard}
       REDDIT_DRY_RUN: ${REDDIT_DRY_RUN:-true}
+      REDDIT_DM_RESULTS: ${REDDIT_DM_RESULTS:-true}
+      REDDIT_PUBLIC_FALLBACK_ON_DM_FAILURE: ${REDDIT_PUBLIC_FALLBACK_ON_DM_FAILURE:-false}
+      REDDIT_PUBLIC_ACK_ON_QUEUE: ${REDDIT_PUBLIC_ACK_ON_QUEUE:-false}
     depends_on:
       migrate:
         condition: service_completed_successfully

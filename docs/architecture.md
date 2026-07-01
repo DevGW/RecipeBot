@@ -9,5 +9,6 @@ RecipeBot currently has three local boundaries:
 - The FastAPI service safely resolves completed card paths and delivers fixed artifact names.
 - The PRAW listener watches an explicit subreddit allowlist and ingests only exact commands.
 - The deterministic extractor turns Reddit source text into the existing renderer contract.
+- The delivery service durably records DM attempts and only uses public fallback when opted in.
 
-Reddit replies, direct messages, and external queue systems remain intentionally unimplemented.
+Recipe listing commands, per-command flags, web authentication, and external queue systems remain intentionally unimplemented.

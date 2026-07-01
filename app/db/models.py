@@ -105,6 +105,7 @@ class Job(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     command_comment_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    requester_username: Mapped[str | None] = mapped_column(String(64))
     source_item_id: Mapped[int | None] = mapped_column(ForeignKey("source_items.id"))
     card_id: Mapped[int | None] = mapped_column(ForeignKey("cards.id"))
     status: Mapped[str] = mapped_column(String(32), default="queued", nullable=False)
@@ -120,11 +121,19 @@ class Message(TimestampMixin, Base):
     """An inbound or outbound bot message retained for auditability."""
 
     __tablename__ = "messages"
+    __table_args__ = (
+        UniqueConstraint("job_id", "message_type", name="uq_messages_job_message_type"),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     job_id: Mapped[int | None] = mapped_column(ForeignKey("jobs.id"))
     direction: Mapped[str] = mapped_column(String(16), nullable=False)
+    recipient_username: Mapped[str] = mapped_column(String(64), nullable=False)
+    message_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), default="queued", nullable=False)
     reddit_fullname: Mapped[str | None] = mapped_column(String(32), unique=True)
+    external_message_id: Mapped[str | None] = mapped_column(String(64))
+    error_message: Mapped[str | None] = mapped_column(Text)
     body: Mapped[str] = mapped_column(Text, nullable=False)
 
     job: Mapped[Job | None] = relationship()

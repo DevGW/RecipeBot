@@ -7,13 +7,16 @@ import time
 from typing import Any
 
 import praw
+from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config.settings import Settings, get_settings
+from app.db.models import Job
 from app.db.session import build_session_factory
 from app.reddit.client import build_reddit_client
 from app.reddit.commands import is_recipe_card_command
 from app.reddit.ingestion import ingest_command_comment
+from app.reddit.messages import format_queue_acknowledgement
 
 logger = logging.getLogger(__name__)
 
@@ -63,11 +66,27 @@ class RedditListener:
         command_id = getattr(comment, "name", "unknown")
         try:
             with self.session_factory.begin() as session:
+                existing_job = session.scalar(
+                    select(Job).where(Job.command_comment_id == command_id)
+                )
                 job = ingest_command_comment(session, comment, self.settings)
             if job is not None:
                 logger.info("Ingested Reddit command %s as job %s", command_id, job.id)
+                if existing_job is None:
+                    self._acknowledge_queue(comment, job.id)
         except Exception:
             logger.exception("Failed to ingest Reddit command %s", command_id)
+
+    def _acknowledge_queue(self, comment: Any, job_id: int) -> None:
+        if not self.settings.reddit_public_ack_on_queue:
+            return
+        if self.settings.reddit_dry_run:
+            logger.info("Dry run: would publicly acknowledge queued job %s", job_id)
+            return
+        try:
+            comment.reply(format_queue_acknowledgement())
+        except Exception:
+            logger.exception("Failed to publicly acknowledge queued job %s", job_id)
 
     def subreddit_selector(self) -> str:
         """Return the PRAW multi-subreddit selector for the explicit allowlist."""

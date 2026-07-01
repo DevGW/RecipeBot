@@ -21,6 +21,8 @@ from app.jobs.service import (
     set_job_state,
 )
 from app.jobs.states import JobState
+from app.reddit.client import build_reddit_client
+from app.reddit.delivery import RedditDeliveryService
 from app.rendering.card_spec import RecipeCardSpec
 from app.rendering.renderer import RenderedCardPaths, render_card
 from app.storage.artifacts import create_job_bundle
@@ -38,11 +40,13 @@ class JobWorker:
         settings: Settings,
         *,
         renderer: RenderFunction = render_card,
+        delivery_service: RedditDeliveryService | None = None,
     ) -> None:
         """Configure the worker with database, settings, and rendering dependencies."""
         self.session_factory = session_factory
         self.settings = settings
         self.renderer = renderer
+        self.delivery_service = delivery_service
 
     def run_once(self) -> bool:
         """Process at most one queued job and report whether a job was claimed."""
@@ -88,8 +92,9 @@ class JobWorker:
             source_url=source_url,
         )
 
-        # Messaging is a durable lifecycle checkpoint only; Reddit behavior is not implemented yet.
+        # Delivery is part of the durable messaging phase and must succeed before completion.
         self._transition(job_id, JobState.MESSAGING)
+        self._deliver_result(job_id)
         with self.session_factory.begin() as session:
             job = self._require_job(session, job_id)
             card = session.get(Card, card_id)
@@ -97,6 +102,18 @@ class JobWorker:
                 raise RuntimeError(f"card {card_id} disappeared while completing job {job_id}")
             mark_job_completed(session, job, card)
             return card
+
+    def _deliver_result(self, job_id: int) -> None:
+        if self.delivery_service is not None:
+            self.delivery_service.deliver_job(job_id)
+            return
+        with self.session_factory.begin() as session:
+            job = self._require_job(session, job_id)
+            requester_username = job.requester_username
+        if not requester_username or not self.settings.reddit_dm_results:
+            return
+        reddit = None if self.settings.reddit_dry_run else build_reddit_client(self.settings)
+        RedditDeliveryService(reddit, self.session_factory, self.settings).deliver_job(job_id)
 
     def _load_recipe_spec(self, job_id: int) -> tuple[int, RecipeCardSpec, str | None]:
         with self.session_factory.begin() as session:

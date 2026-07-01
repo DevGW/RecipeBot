@@ -86,7 +86,12 @@ def test_ingestion_creates_source_recipe_and_queued_job() -> None:
     add_user.assert_called_once_with(session, "cook")
     add_source.assert_called_once_with(session, source, subreddit, user)
     add_recipe.assert_called_once_with(session, source_item, source, extracted)
-    add_job.assert_called_once_with(session, "t1_command", 3)
+    add_job.assert_called_once_with(
+        session,
+        "t1_command",
+        3,
+        requester_username="reader",
+    )
 
 
 def test_duplicate_command_returns_existing_job_without_new_records() -> None:
