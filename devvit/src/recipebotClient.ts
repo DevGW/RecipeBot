@@ -72,17 +72,20 @@ export async function sendRecipeCardRequest(
     subreddit: payload.subreddit,
   };
   logger.log("RecipeBot backend request", diagnosticContext);
+  console.log("RecipeBot backend request", diagnosticContext);
 
   let response: Response;
   try {
     response = await fetcher(request.url, request.init);
   } catch (error) {
-    logger.error("RecipeBot backend fetch failed", {
+    const fetchFailureDetails = {
       ...diagnosticContext,
       errorName: errorName(error),
       errorMessage: errorMessage(error),
       hint: "Check Devvit HTTP fetch domain approval, DNS/IPv6, and TLS reachability.",
-    });
+    };
+    logger.error("RecipeBot backend fetch failed", fetchFailureDetails);
+    console.error("RecipeBot backend fetch failed", fetchFailureDetails);
     return { ok: false, reason: "fetch" };
   }
 
@@ -99,17 +102,29 @@ export async function sendRecipeCardRequest(
     return { ok: false, reason: "response" };
   }
 
-  logger.log("RecipeBot backend response", {
+  const responseDetails = {
     ...diagnosticContext,
     httpStatus: response.status,
     responseBody,
-  });
-  if (!response.ok) return { ok: false, reason: "http" };
+  };
+  logger.log("RecipeBot backend response", responseDetails);
+  if (!response.ok) {
+    console.error("RecipeBot backend non-2xx response", responseDetails);
+    return { ok: false, reason: "http" };
+  }
 
   try {
+    const parsed = JSON.parse(responseBody) as RecipeBotResponse;
+    console.log("RecipeBot backend request succeeded", {
+      ...diagnosticContext,
+      httpStatus: response.status,
+      jobId: parsed.job_id,
+      cardUrl: parsed.card_url,
+      status: parsed.status,
+    });
     return {
       ok: true,
-      response: JSON.parse(responseBody) as RecipeBotResponse,
+      response: parsed,
     };
   } catch (error) {
     logger.error("RecipeBot backend response was not valid JSON", {

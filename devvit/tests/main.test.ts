@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   handleCommentCreate,
+  handleOnCommentCreateTrigger,
   type CommentTriggerDependencies,
 } from "../src/main.js";
+import { sendRecipeCardRequest } from "../src/recipebotClient.js";
 import type { RecipeBotLogger } from "../src/recipebotClient.js";
 import type {
   RedditCommentSource,
@@ -136,5 +138,29 @@ describe("comment-created trigger", () => {
         cardUrl: "https://recipebot.devgw.com/cards/123",
       }),
     });
+  });
+});
+
+describe("onCommentCreate trigger handler", () => {
+  it("resolves without throwing when fetch rejects with fetch failed", async () => {
+    const fetchError = new Error("fetch failed");
+    const sendRequest: CommentTriggerDependencies["sendRequest"] = async (payload, config, logger) =>
+      await sendRecipeCardRequest(
+        payload,
+        config,
+        logger,
+        async () => { throw fetchError; },
+      );
+
+    const deps = dependencies(
+      {
+        RECIPEBOT_BACKEND_URL: "https://recipebot.devgw.com",
+        RECIPEBOT_WEBHOOK_SECRET: "secret",
+      },
+      new TestLogger(),
+      sendRequest,
+    );
+
+    await expect(handleOnCommentCreateTrigger(event, deps)).resolves.toEqual({ status: "error" });
   });
 });

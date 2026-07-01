@@ -37,6 +37,33 @@ export interface CommentTriggerDependencies {
 
 export type CommentTriggerStatus = "error" | "ignored" | "ok";
 
+/** Serialize a caught error for outer trigger-handler diagnostics. */
+export function serializeTriggerError(error: unknown): {
+  message: string;
+  name: string;
+  stack: string | undefined;
+} {
+  return {
+    name: errorName(error),
+    message: errorMessage(error),
+    stack: error instanceof Error ? error.stack : undefined,
+  };
+}
+
+/** Run the onCommentCreate trigger after the request body is parsed. */
+export async function handleOnCommentCreateTrigger(
+  input: OnCommentCreateRequest,
+  dependencies: CommentTriggerDependencies,
+): Promise<TriggerResponse> {
+  try {
+    const status = await handleCommentCreate(input, dependencies);
+    return { status };
+  } catch (error) {
+    console.error("RecipeBot outer trigger handler failed", serializeTriggerError(error));
+    return { status: "error" };
+  }
+}
+
 /** Process one comment-created event and always resolve with a trigger status. */
 export async function handleCommentCreate(
   input: CommentCreateEvent,
@@ -47,6 +74,7 @@ export async function handleCommentCreate(
     const eventAuthorName = input.author?.name;
     const eventIsFromApp =
       eventAuthorName?.toLowerCase() === dependencies.appSlug.toLowerCase();
+    console.log("RecipeBot checking comment command");
     if (
       !eventComment?.id ||
       !isCommentId(eventComment.id) ||
@@ -103,22 +131,20 @@ export async function handleCommentCreate(
 const app = new Hono();
 
 app.post("/internal/triggers/comment-create", async (c) => {
+  console.log("RecipeBot onCommentCreate handler entered");
   try {
     const input = await c.req.json<OnCommentCreateRequest>();
-    const status = await handleCommentCreate(input, {
+    const response = await handleOnCommentCreateTrigger(input, {
       appSlug: context.appSlug,
-      getSetting: (name) => settings.get(name),
+      getSetting: async (name) => await settings.get(name),
       logger: console,
       reddit,
       sendRequest: sendRecipeCardRequest,
     });
-    return c.json<TriggerResponse>({ status });
+    return c.json<TriggerResponse>(response);
   } catch (error) {
-    console.error("RecipeBot comment-created endpoint failed safely", {
-      errorName: errorName(error),
-      errorMessage: errorMessage(error),
-    });
-    return c.json({ status: "error" });
+    console.error("RecipeBot outer trigger handler failed", serializeTriggerError(error));
+    return c.json<TriggerResponse>({ status: "error" });
   }
 });
 
