@@ -1,24 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
-
-vi.mock("@devvit/web/server", () => ({
-  context: { appSlug: "recipebot-devgw" },
-  settings: { get: async () => undefined },
-  reddit: {
-    getCommentById: async () => {
-      throw new Error("not used in this test");
-    },
-    getPostById: async () => {
-      throw new Error("not used in this test");
-    },
-  },
-}));
+import { describe, expect, it } from "vitest";
 
 import {
   createRecipeBotApp,
   handleCommentCreate,
   handleOnCommentCreateTrigger,
   type CommentTriggerDependencies,
-} from "../src/serverApp.js";
+} from "../src/app.js";
 import { sendRecipeCardRequest } from "../src/recipebotClient.js";
 import type { RecipeBotLogger } from "../src/recipebotClient.js";
 import type {
@@ -156,11 +143,16 @@ describe("comment-created trigger", () => {
 });
 
 describe("Hono app route", () => {
-  it("exports a default app that is reachable", async () => {
-    const module = await import("../src/main.js");
+  it("exports a Hono app with fetch from createRecipeBotApp", () => {
+    const app = createRecipeBotApp(
+      dependencies({
+        RECIPEBOT_BACKEND_URL: "https://recipebot.devgw.com",
+        RECIPEBOT_WEBHOOK_SECRET: "secret",
+      }),
+    );
 
-    expect(module.default).toBeDefined();
-    expect(typeof module.default.fetch).toBe("function");
+    expect(app).toBeDefined();
+    expect(typeof app.fetch).toBe("function");
   });
 
   it("POST /internal/triggers/comment-create returns 200 for a minimal request", async () => {

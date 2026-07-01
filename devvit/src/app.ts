@@ -1,11 +1,10 @@
-/** RecipeBot Devvit server app and trigger handlers without Devvit runtime imports. */
+/** RecipeBot Hono app and onCommentCreate trigger handlers. */
 
 import type { OnCommentCreateRequest, TriggerResponse } from "@devvit/web/shared";
 import { Hono } from "hono";
 
 import { isExactRecipeCardCommand, shouldHandleCommand } from "./command.js";
 import {
-  sendRecipeCardRequest,
   type RecipeBotClientConfig,
   type RecipeBotLogger,
   type RecipeBotSendResult,

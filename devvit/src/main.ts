@@ -1,8 +1,9 @@
-/** Devvit server entrypoint that wires Reddit runtime dependencies into the Hono app. */
+/** Devvit server entrypoint that starts the RecipeBot Hono app. */
 
-import { context, reddit, settings } from "@devvit/web/server";
+import { serve } from "@hono/node-server";
+import { context, createServer, getServerPort, reddit, settings } from "@devvit/web/server";
 
-import { createRecipeBotApp } from "./serverApp.js";
+import { createRecipeBotApp } from "./app.js";
 import { sendRecipeCardRequest } from "./recipebotClient.js";
 
 const app = createRecipeBotApp({
@@ -15,4 +16,8 @@ const app = createRecipeBotApp({
   sendRequest: sendRecipeCardRequest,
 });
 
-export default app;
+serve({
+  fetch: app.fetch,
+  createServer,
+  port: getServerPort(),
+});

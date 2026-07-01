@@ -4,12 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "esbuild src/main.ts --bundle --platform=node --format=cjs --target=node22 --outfile=dist/server/index.cjs",
+    "build": "esbuild src/main.ts --bundle --platform=node --format=cjs --target=node22 --outfile=dist/server/index.cjs && mkdir -p dist/server/dist/server && cp dist/server/index.cjs dist/server/dist/server/index.cjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@devvit/web": "0.13.6",
+    "@hono/node-server": "^2.0.6",
     "hono": "^4.10.6"
   },
   "devDependencies": {
