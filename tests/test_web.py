@@ -93,6 +93,24 @@ def test_terms_get_and_head(web_client: FlaskClient) -> None:
     assert head_response.data == b""
 
 
+def test_devvit_api_get_and_head(web_client: FlaskClient) -> None:
+    """The Devvit API documentation should be a public HTML page."""
+    get_response = web_client.get("/devvit-api")
+    head_response = web_client.head("/devvit-api")
+    html = get_response.get_data(as_text=True)
+
+    assert get_response.status_code == 200
+    assert get_response.content_type.startswith("text/html")
+    assert "RecipeBot Devvit API" in html
+    assert "POST /internal/devvit/recipecard" in html
+    assert "!recipecard" in html
+    assert "HMAC SHA-256" in html
+    assert "does not sell user data" in html
+    assert "does not use Reddit content for model training" in html
+    assert head_response.status_code == 200
+    assert head_response.data == b""
+
+
 def test_landing_page_get_and_head(web_client: FlaskClient) -> None:
     """The landing page should safely show preview, source, and download links."""
     get_response = web_client.get("/cards/6")

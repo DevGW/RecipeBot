@@ -82,6 +82,11 @@ def create_app(
         """Return the public RecipeBot terms of use."""
         return Response(terms_of_use_html(), mimetype="text/html")
 
+    @application.route("/devvit-api", methods=["GET", "HEAD"])
+    def devvit_api() -> Response:
+        """Return public documentation for the RecipeBot Devvit API usage."""
+        return Response(devvit_api_html(), mimetype="text/html")
+
     @application.route("/cards/<int:card_id>", methods=["GET", "HEAD"])
     def card_landing_page(card_id: int) -> Response:
         """Show a plain HTML preview and download page for a completed card."""
@@ -430,3 +435,114 @@ def terms_of_use_html() -> str:
             ),
         ],
     )
+
+
+def devvit_api_html() -> str:
+    """Return the public RecipeBot Devvit API documentation HTML document."""
+    return """<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RecipeBot Devvit API · RecipeBot</title>
+  <style>
+    body { margin: 0 auto; max-width: 960px; padding: 32px 20px 64px;
+            background: #fffdf8; color: #23211f; font-family: system-ui, sans-serif;
+            line-height: 1.6; }
+    h1 { font-size: clamp(2rem, 5vw, 3rem); margin-bottom: 12px; }
+    h2 { font-size: 1.25rem; margin: 28px 0 12px; }
+    p { margin: 0 0 14px; }
+    ul { margin: 0 0 14px 1.25rem; padding: 0; }
+    li { margin: 0 0 6px; }
+    code { background: #f1e8dc; border-radius: 4px; padding: 0.1rem 0.25rem; }
+    a { color: #7b4028; font-weight: 650; }
+    nav { margin-bottom: 28px; }
+  </style>
+</head>
+<body>
+  <nav aria-label="RecipeBot public pages">
+    <a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms of Use</a>
+  </nav>
+  <h1>RecipeBot Devvit API</h1>
+  <p>RecipeBot uses this domain for one purpose: receiving signed <code>!recipecard</code> job requests from the RecipeBot Devvit app.</p>
+
+  <section>
+    <h2>Endpoint</h2>
+    <p><code>POST /internal/devvit/recipecard</code></p>
+    <p>This endpoint is called only by the RecipeBot Devvit app.</p>
+  </section>
+
+  <section>
+    <h2>Trigger</h2>
+    <p>RecipeBot is triggered only when a Reddit user comments the exact standalone command:</p>
+    <p><code>!recipecard</code></p>
+    <p>When triggered, the Devvit app reads the parent post or comment and sends a minimal signed job request to this backend.</p>
+  </section>
+
+  <section>
+    <h2>Data Sent</h2>
+    <p>The request may include:</p>
+    <ul>
+      <li>command comment id</li>
+      <li>requester username</li>
+      <li>subreddit</li>
+      <li>parent post/comment fullname</li>
+      <li>parent title/body</li>
+      <li>parent permalink</li>
+      <li>parent URL</li>
+      <li>created timestamp</li>
+    </ul>
+    <p>This data is used only to create the requested recipe card job.</p>
+  </section>
+
+  <section>
+    <h2>Why an External Backend Is Required</h2>
+    <p>The Devvit app does not render recipe cards itself.</p>
+    <p>RecipeBot's backend is required because card generation uses a native rendering pipeline to create PNG, SVG, and PDF artifacts, queue jobs, deduplicate repeated command events, host generated card URLs, and support removal requests.</p>
+  </section>
+
+  <section>
+    <h2>Security</h2>
+    <p>Requests are signed with HMAC SHA-256.</p>
+    <p>The signature is calculated from:</p>
+    <p><code>timestamp + "." + raw JSON body</code></p>
+    <p>The backend validates the timestamp and signature before accepting the request.</p>
+  </section>
+
+  <section>
+    <h2>Data Not Collected</h2>
+    <p>RecipeBot does not collect:</p>
+    <ul>
+      <li>Reddit passwords</li>
+      <li>OAuth client secrets</li>
+      <li>private messages</li>
+      <li>payment information</li>
+      <li>advertising identifiers</li>
+      <li>unrelated profile data</li>
+    </ul>
+    <p>RecipeBot does not independently scrape Reddit. The backend only receives the parent post/comment data that the Devvit app sends after a user intentionally invokes <code>!recipecard</code>.</p>
+  </section>
+
+  <section>
+    <h2>Data Use</h2>
+    <p>RecipeBot does not sell user data.</p>
+    <p>RecipeBot does not use Reddit content for advertising.</p>
+    <p>RecipeBot does not use Reddit content for model training.</p>
+  </section>
+
+  <section>
+    <h2>Retention and Removal</h2>
+    <p>RecipeBot stores job metadata and generated card artifacts only so the requester can retrieve the generated card URL.</p>
+    <p>Users or moderators may request removal of generated artifacts through the Privacy Policy page.</p>
+  </section>
+
+  <section>
+    <h2>Related Pages</h2>
+    <p>Terms:</p>
+    <p><a href="https://recipebot.devgw.com/terms">https://recipebot.devgw.com/terms</a></p>
+    <p>Privacy Policy:</p>
+    <p><a href="https://recipebot.devgw.com/privacy">https://recipebot.devgw.com/privacy</a></p>
+  </section>
+</body>
+</html>
+"""
