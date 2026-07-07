@@ -1,18 +1,42 @@
 import { describe, expect, it } from "vitest";
 
-import { buildQueuedReply } from "../src/redditReply.js";
+import { buildRecipeBotReply } from "../src/redditReply.js";
 
-describe("buildQueuedReply", () => {
+describe("buildRecipeBotReply", () => {
   it("returns the expected queued card message with the card URL", () => {
     const cardUrl = "https://recipebot.devgw.com/cards/123";
 
-    expect(buildQueuedReply(cardUrl)).toBe(
+    expect(buildRecipeBotReply(cardUrl, "queued")).toBe(
       [
-        "RecipeBot queued your card:",
+        "RecipeBot is generating your card:",
         "",
         cardUrl,
         "",
-        "It may take a moment for all downloads to appear.",
+        "The page will update when the PNG, SVG, and PDF files are ready.",
+      ].join("\n"),
+    );
+  });
+
+  it("returns the ready card message with the card URL", () => {
+    const cardUrl = "https://recipebot.devgw.com/cards/123";
+
+    expect(buildRecipeBotReply(cardUrl, "ready")).toBe(
+      [
+        "Your RecipeBot card is ready:",
+        "",
+        cardUrl,
+      ].join("\n"),
+    );
+  });
+
+  it("returns the existing job message with the card URL", () => {
+    const cardUrl = "https://recipebot.devgw.com/cards/123";
+
+    expect(buildRecipeBotReply(cardUrl, "existing")).toBe(
+      [
+        "RecipeBot already has a card job for this request:",
+        "",
+        cardUrl,
       ].join("\n"),
     );
   });

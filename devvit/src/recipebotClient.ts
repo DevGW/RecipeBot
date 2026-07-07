@@ -24,7 +24,8 @@ export interface RecipeBotRequest {
 export interface RecipeBotResponse {
   card_url: string;
   job_id: number;
-  status: "queued" | "existing";
+  ok?: boolean;
+  status: "queued" | "processing" | "ready" | "existing";
 }
 
 export type RecipeBotSendResult =
@@ -105,7 +106,9 @@ export async function sendRecipeCardRequest(
   const responseDetails = {
     ...diagnosticContext,
     httpStatus: response.status,
-    responseBody,
+    ...(response.ok
+      ? { responseBody }
+      : sanitizedBackendResponseDetails(responseBody)),
   };
   logger.log("RecipeBot backend response", responseDetails);
   if (!response.ok) {
@@ -114,7 +117,14 @@ export async function sendRecipeCardRequest(
   }
 
   try {
-    const parsed = JSON.parse(responseBody) as RecipeBotResponse;
+    const parsed = parseRecipeBotResponse(responseBody);
+    if (!parsed) {
+      logger.error("RecipeBot backend response was missing a usable card URL", {
+        ...diagnosticContext,
+        httpStatus: response.status,
+      });
+      return { ok: false, reason: "response" };
+    }
     console.log("RecipeBot backend request succeeded", {
       ...diagnosticContext,
       httpStatus: response.status,
@@ -133,6 +143,54 @@ export async function sendRecipeCardRequest(
       errorMessage: errorMessage(error),
     });
     return { ok: false, reason: "response" };
+  }
+}
+
+function parseRecipeBotResponse(responseBody: string): RecipeBotResponse | null {
+  const parsed = JSON.parse(responseBody) as {
+    card_url?: unknown;
+    job_id?: unknown;
+    ok?: unknown;
+    status?: unknown;
+    status_url?: unknown;
+  };
+  if (parsed.ok === false) return null;
+  const cardUrl = typeof parsed.card_url === "string" && parsed.card_url.trim()
+    ? parsed.card_url
+    : typeof parsed.status_url === "string" && parsed.status_url.trim()
+      ? parsed.status_url
+      : null;
+  const jobId = parseJobId(parsed.job_id);
+  if (!cardUrl || jobId === null) return null;
+  return {
+    card_url: cardUrl,
+    job_id: jobId,
+    status: parseRecipeBotStatus(parsed.status),
+    ...(typeof parsed.ok === "boolean" ? { ok: parsed.ok } : {}),
+  };
+}
+
+function parseJobId(jobId: unknown): number | null {
+  if (typeof jobId === "number" && Number.isInteger(jobId) && jobId > 0) return jobId;
+  if (typeof jobId !== "string" || !/^[1-9]\d*$/.test(jobId)) return null;
+  return Number(jobId);
+}
+
+function parseRecipeBotStatus(status: unknown): RecipeBotResponse["status"] {
+  return status === "processing" || status === "ready" || status === "existing"
+    ? status
+    : "queued";
+}
+
+function sanitizedBackendResponseDetails(responseBody: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(responseBody) as { error?: unknown; ok?: unknown };
+    return {
+      backendError: typeof parsed.error === "string" ? parsed.error : "unknown",
+      responseBodyLength: responseBody.length,
+    };
+  } catch {
+    return { responseBodyLength: responseBody.length };
   }
 }
 

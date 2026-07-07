@@ -69,11 +69,12 @@ function dependencies(
   settings: Record<string, unknown>,
   logger = new TestLogger(),
   sendRequest: CommentTriggerDependencies["sendRequest"] = async () => ({
-    ok: true,
-    response: {
-      status: "queued",
-      job_id: 123,
-      card_url: "https://recipebot.devgw.com/cards/123",
+      ok: true,
+      response: {
+        ok: true,
+        status: "queued",
+        job_id: 123,
+        card_url: "https://recipebot.devgw.com/cards/123",
     },
   }),
   redditReplier: CommentTriggerDependencies["redditReplier"] = {
@@ -117,6 +118,7 @@ describe("comment-created trigger", () => {
   });
 
   it("returns safely when the backend fetch reports failure", async () => {
+    const submitComment = vi.fn(async () => ({}));
     const deps = dependencies(
       {
         RECIPEBOT_BACKEND_URL: "https://recipebot.devgw.com",
@@ -124,9 +126,44 @@ describe("comment-created trigger", () => {
       },
       new TestLogger(),
       async () => ({ ok: false, reason: "fetch" }),
+      { submitComment },
     );
 
     await expect(handleCommentCreate(event, deps)).resolves.toBe("error");
+    expect(submitComment).not.toHaveBeenCalled();
+  });
+
+  it("sends the backend request for the exact standalone command", async () => {
+    const sendRequest = vi.fn<CommentTriggerDependencies["sendRequest"]>(async () => ({
+      ok: true,
+      response: {
+        ok: true,
+        status: "queued",
+        job_id: 123,
+        card_url: "https://recipebot.devgw.com/cards/123",
+      },
+    }));
+    const deps = dependencies(
+      {
+        RECIPEBOT_BACKEND_URL: "https://recipebot.devgw.com",
+        RECIPEBOT_WEBHOOK_SECRET: "secret",
+      },
+      new TestLogger(),
+      sendRequest,
+    );
+
+    await expect(handleCommentCreate(event, deps)).resolves.toBe("ok");
+    expect(sendRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command_comment_id: "t1_command",
+        source_fullname: "t1_parent",
+      }),
+      {
+        backendUrl: "https://recipebot.devgw.com",
+        webhookSecret: "secret",
+      },
+      deps.logger,
+    );
   });
 
   it("logs the accepted job id and card URL", async () => {
@@ -156,6 +193,7 @@ describe("comment-created trigger", () => {
       async () => ({
         ok: true,
         response: {
+          ok: true,
           status: "queued",
           job_id: 123,
           card_url: "https://recipebot.devgw.com/cards/123",
@@ -167,7 +205,13 @@ describe("comment-created trigger", () => {
     await expect(handleCommentCreate(event, deps)).resolves.toBe("ok");
     expect(submitComment).toHaveBeenCalledWith({
       id: "t1_command",
-      text: expect.stringContaining("https://recipebot.devgw.com/cards/123"),
+      text: [
+        "RecipeBot is generating your card:",
+        "",
+        "https://recipebot.devgw.com/cards/123",
+        "",
+        "The page will update when the PNG, SVG, and PDF files are ready.",
+      ].join("\n"),
       runAs: "APP",
     });
     expect(deps.logger.entries).toContainEqual({
@@ -177,6 +221,112 @@ describe("comment-created trigger", () => {
         cardUrl: "https://recipebot.devgw.com/cards/123",
       }),
     });
+  });
+
+  it("uses the ready reply when the backend says the card is ready", async () => {
+    const submitComment = vi.fn(async () => ({}));
+    const deps = dependencies(
+      {
+        RECIPEBOT_BACKEND_URL: "https://recipebot.devgw.com",
+        RECIPEBOT_WEBHOOK_SECRET: "secret",
+      },
+      new TestLogger(),
+      async () => ({
+        ok: true,
+        response: {
+          ok: true,
+          status: "ready",
+          job_id: 123,
+          card_url: "https://recipebot.devgw.com/cards/123",
+        },
+      }),
+      { submitComment },
+    );
+
+    await expect(handleCommentCreate(event, deps)).resolves.toBe("ok");
+    expect(submitComment).toHaveBeenCalledWith({
+      id: "t1_command",
+      text: [
+        "Your RecipeBot card is ready:",
+        "",
+        "https://recipebot.devgw.com/cards/123",
+      ].join("\n"),
+      runAs: "APP",
+    });
+  });
+
+  it("uses the existing job reply when the backend reports a duplicate job", async () => {
+    const submitComment = vi.fn(async () => ({}));
+    const deps = dependencies(
+      {
+        RECIPEBOT_BACKEND_URL: "https://recipebot.devgw.com",
+        RECIPEBOT_WEBHOOK_SECRET: "secret",
+      },
+      new TestLogger(),
+      async () => ({
+        ok: true,
+        response: {
+          ok: true,
+          status: "existing",
+          job_id: 123,
+          card_url: "https://recipebot.devgw.com/cards/123",
+        },
+      }),
+      { submitComment },
+    );
+
+    await expect(handleCommentCreate(event, deps)).resolves.toBe("ok");
+    expect(submitComment).toHaveBeenCalledWith({
+      id: "t1_command",
+      text: [
+        "RecipeBot already has a card job for this request:",
+        "",
+        "https://recipebot.devgw.com/cards/123",
+      ].join("\n"),
+      runAs: "APP",
+    });
+  });
+
+  it("ignores malformed commands without calling backend or replying", async () => {
+    const sendRequest = vi.fn<CommentTriggerDependencies["sendRequest"]>();
+    const submitComment = vi.fn(async () => ({}));
+    const deps = dependencies(
+      {
+        RECIPEBOT_BACKEND_URL: "https://recipebot.devgw.com",
+        RECIPEBOT_WEBHOOK_SECRET: "secret",
+      },
+      new TestLogger(),
+      sendRequest,
+      { submitComment },
+    );
+
+    await expect(handleCommentCreate({
+      author: { name: "example_user" },
+      comment: { id: "t1_command", body: "!recipecard please" },
+    }, deps)).resolves.toBe("ignored");
+    expect(sendRequest).not.toHaveBeenCalled();
+    expect(submitComment).not.toHaveBeenCalled();
+  });
+
+  it("ignores app-authored comments without calling backend or replying", async () => {
+    const sendRequest = vi.fn<CommentTriggerDependencies["sendRequest"]>();
+    const submitComment = vi.fn(async () => ({}));
+    const deps = dependencies(
+      {
+        RECIPEBOT_BACKEND_URL: "https://recipebot.devgw.com",
+        RECIPEBOT_WEBHOOK_SECRET: "secret",
+      },
+      new TestLogger(),
+      sendRequest,
+      { submitComment },
+    );
+
+    await expect(handleCommentCreate({
+      author: { name: "recipebot-devgw" },
+      comment: { id: "t1_command", body: "!recipecard" },
+    }, deps)).resolves.toBe("ignored");
+    expect(sendRequest).not.toHaveBeenCalled();
+    expect(submitComment).not.toHaveBeenCalled();
   });
 
   it("resolves safely when the Reddit reply call rejects", async () => {
@@ -189,6 +339,7 @@ describe("comment-created trigger", () => {
       async () => ({
         ok: true,
         response: {
+          ok: true,
           status: "queued",
           job_id: 123,
           card_url: "https://recipebot.devgw.com/cards/123",

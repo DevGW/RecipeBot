@@ -4,9 +4,11 @@ RecipeBot is a Devvit app that responds only to the exact standalone comment com
 
 `!recipecard`
 
-When a Reddit user replies to a recipe post or comment with `!recipecard`, the app reads the parent post or comment, creates a minimal signed job request, and sends that request to RecipeBot’s backend.
+When a Reddit user replies to a recipe post or comment with `!recipecard`, the app reads the parent post or comment, creates a minimal signed job request, and sends that request to RecipeBot's backend.
 
-The backend generates a recipe card and returns a hosted card URL.
+The backend accepts the job and returns a public card URL.
+
+The Devvit app replies to the user's `!recipecard` command comment with that URL so the requester can retrieve the generated recipe card.
 
 ## External Fetch Domain
 
@@ -26,7 +28,7 @@ Public documentation for this endpoint is available at:
 
 The Devvit app does not render recipe cards itself.
 
-RecipeBot’s backend is required because the card-generation workflow creates PNG, SVG, and PDF artifacts using a native rendering pipeline. The backend also handles job deduplication, artifact hosting, and removal requests.
+RecipeBot's backend is required because the card-generation workflow creates PNG, SVG, and PDF artifacts using a native rendering pipeline. The backend also handles job deduplication, artifact hosting, and removal requests.
 
 ## Command Behavior
 
@@ -58,6 +60,14 @@ The Devvit app sends only the data needed to create the requested recipe card jo
 - created timestamp
 
 The backend uses this data only to create the requested recipe card job and return a hosted card URL.
+
+## User Delivery
+
+After the backend accepts the job, it returns a public card URL.
+
+The Devvit app replies to the user's `!recipecard` command comment with that URL.
+
+If the card is still rendering, the card page shows the current processing state and updates when the PNG, SVG, and PDF artifacts are ready.
 
 ## Security
 
@@ -114,4 +124,4 @@ External domain requested:
 
 `recipebot.devgw.com`
 
-This domain is used only for signed RecipeBot job creation, recipe card generation, card hosting, and removal support.
+This domain is used only for signed RecipeBot job creation, recipe card generation, card hosting, user delivery, and removal support.

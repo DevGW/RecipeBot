@@ -73,10 +73,10 @@ def resolve_card_artifacts(artifact_root: Path, card_id: int, card: Card) -> Art
     return paths
 
 
-def public_artifact_urls(artifact_base_url: str, card_id: int) -> dict[str, str]:
-    """Build public landing and download URLs for one card."""
+def public_artifact_urls(artifact_base_url: str, public_id: int) -> dict[str, str]:
+    """Build public landing and download URLs for one card/job route id."""
     base = artifact_base_url.rstrip("/")
-    card_base = f"{base}/{card_id}"
+    card_base = f"{base}/{public_id}"
     return {
         "landing": card_base,
         "png": f"{card_base}/card.png",
@@ -132,7 +132,7 @@ def create_job_bundle(
 ) -> ArtifactBundle:
     """Write metadata and package the rendered outputs for a completed job."""
     paths = resolve_job_artifacts(artifact_root, job_id)
-    urls = public_artifact_urls(artifact_base_url, card_id)
+    urls = public_artifact_urls(artifact_base_url, job_id)
     metadata = {
         "card_id": card_id,
         "job_id": job_id,

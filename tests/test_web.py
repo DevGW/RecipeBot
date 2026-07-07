@@ -6,7 +6,8 @@ from flask.testing import FlaskClient
 import pytest
 
 from app.config.settings import Settings
-from app.db.models import Card
+from app.db.models import Card, Job
+from app.jobs.states import JobState
 from app.storage.artifacts import create_job_bundle, resolve_job_artifacts
 from app.web.server import create_app
 
@@ -36,6 +37,17 @@ def web_client(tmp_path: Path) -> FlaskClient:
         png_path=str(paths.png),
         pdf_path=str(paths.pdf),
     )
+    completed_job = Job(
+        id=11,
+        command_comment_id="t1_done",
+        status=JobState.COMPLETED.value,
+        card=card,
+    )
+    pending_job = Job(
+        id=12,
+        command_comment_id="t1_pending",
+        status=JobState.RENDERING.value,
+    )
     settings = Settings(
         _env_file=None,
         ARTIFACT_ROOT=tmp_path,
@@ -46,7 +58,11 @@ def web_client(tmp_path: Path) -> FlaskClient:
         """Return the fixture card for its known id."""
         return card if card_id == 6 else None
 
-    application = create_app(settings, card_loader=load_test_card)
+    def load_test_job(job_id: int) -> Job | None:
+        """Return fixture jobs for known public job ids."""
+        return {11: completed_job, 12: pending_job}.get(job_id)
+
+    application = create_app(settings, card_loader=load_test_card, job_loader=load_test_job)
     application.config.update(TESTING=True, TEST_ARTIFACT_DIRECTORY=str(paths.directory))
     return application.test_client()
 
@@ -72,7 +88,8 @@ def test_privacy_get_and_head(web_client: FlaskClient) -> None:
     assert get_response.content_type.startswith("text/html")
     assert "Privacy Policy" in html
     assert "does not sell user data" in html
-    assert "does not use the data for advertising" in html
+    assert "does not use Reddit content for advertising" in html
+    assert "does not use Reddit content for model training" in html
     assert "PostgreSQL" in html
     assert head_response.status_code == 200
     assert head_response.data == b""
@@ -88,7 +105,8 @@ def test_terms_get_and_head(web_client: FlaskClient) -> None:
     assert get_response.content_type.startswith("text/html")
     assert "Terms of Use" in html
     assert "does not collect Reddit passwords" in html
-    assert "hosted under /cards/" in html
+    assert "public /cards/ URL" in html
+    assert "does not use Reddit content for model training" in html
     assert head_response.status_code == 200
     assert head_response.data == b""
 
@@ -126,6 +144,27 @@ def test_landing_page_get_and_head(web_client: FlaskClient) -> None:
     assert "https://reddit.com/r/recipes/comments/example" in html
     assert head_response.status_code == 200
     assert head_response.data == b""
+
+
+def test_job_landing_page_uses_public_job_id(web_client: FlaskClient) -> None:
+    """A Devvit card URL should use the job id while serving the linked card."""
+    response = web_client.get("/cards/11")
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert '<img src="/cards/11/card.png"' in html
+    assert 'href="/cards/11/card.svg"' in html
+
+
+def test_pending_job_landing_page_shows_processing(web_client: FlaskClient) -> None:
+    """A queued or rendering Devvit card URL should show public processing status."""
+    response = web_client.get("/cards/12")
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "RecipeBot is generating your card" in html
+    assert "Status: <code>processing</code>" in html
+    assert "PNG, SVG, and PDF downloads" in html
 
 
 @pytest.mark.parametrize(

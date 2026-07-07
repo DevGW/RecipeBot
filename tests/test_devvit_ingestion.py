@@ -68,6 +68,7 @@ def test_ingestion_builds_source_recipe_and_queued_job() -> None:
 
     assert result.job_id == 4
     assert result.created is True
+    assert result.status == JobState.QUEUED.value
     extract.assert_called_once_with(payload.source_title, payload.source_body)
     add_subreddit.assert_called_once_with(session, "recipes")
     add_source.assert_called_once_with(session, payload, subreddit)
@@ -94,4 +95,5 @@ def test_ingestion_returns_duplicate_before_upserting_source() -> None:
 
     assert result.job_id == 9
     assert result.created is False
+    assert result.status == JobState.QUEUED.value
     extract.assert_not_called()

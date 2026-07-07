@@ -11,14 +11,16 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config.settings import Settings, get_settings
-from app.db.models import Card
+from app.db.models import Card, Job
 from app.db.session import build_session_factory
 from app.devvit.auth import verify_signature
 from app.devvit.contracts import DevvitIngestionResult, DevvitRecipeCardRequest
 from app.devvit.ingestion import ingest_devvit_request
+from app.jobs.states import JobState
 from app.storage.artifacts import ArtifactPaths, read_metadata, resolve_card_artifacts
 
 CardLoader = Callable[[int], Card | None]
+JobLoader = Callable[[int], Job | None]
 DevvitIngestor = Callable[[DevvitRecipeCardRequest], DevvitIngestionResult]
 SessionFactory = sessionmaker[Session]
 
@@ -27,30 +29,39 @@ def create_app(
     settings: Settings | None = None,
     *,
     card_loader: CardLoader | None = None,
+    job_loader: JobLoader | None = None,
     devvit_ingestor: DevvitIngestor | None = None,
 ) -> Flask:
     """Create the Flask card-delivery application with injectable database access."""
     resolved_settings = settings or get_settings()
     session_factory = None
-    if card_loader is None or devvit_ingestor is None:
+    if card_loader is None or job_loader is None or devvit_ingestor is None:
         session_factory = build_session_factory(resolved_settings.database_url)
     load_card = card_loader or _database_card_loader(session_factory)
+    load_job = job_loader or _database_job_loader(session_factory)
     ingest_from_devvit = devvit_ingestor or _database_devvit_ingestor(session_factory)
     application = Flask(__name__)
 
-    def load_paths(card_id: int) -> ArtifactPaths:
+    def load_paths(card: Card) -> ArtifactPaths:
         """Load and validate the filesystem paths for one card."""
-        card = load_card(card_id)
-        if card is None:
-            abort(404)
         try:
-            return resolve_card_artifacts(resolved_settings.artifact_root, card_id, card)
+            return resolve_card_artifacts(resolved_settings.artifact_root, card.id, card)
         except ValueError:
             abort(404)
 
-    def file_response(card_id: int, filename: str, media_type: str) -> Response:
+    def load_public_card(public_id: int) -> tuple[Card | None, Job | None]:
+        """Resolve a public /cards id as a Devvit job first, then legacy card id."""
+        job = load_job(public_id)
+        if job is not None:
+            return job.card, job
+        return load_card(public_id), None
+
+    def file_response(public_id: int, filename: str, media_type: str) -> Response:
         """Build a response for one fixed artifact filename."""
-        paths = load_paths(card_id)
+        card, _job = load_public_card(public_id)
+        if card is None:
+            abort(404)
+        paths = load_paths(card)
         artifact = {
             "card.png": paths.png,
             "card.svg": paths.svg,
@@ -90,12 +101,18 @@ def create_app(
     @application.route("/cards/<int:card_id>", methods=["GET", "HEAD"])
     def card_landing_page(card_id: int) -> Response:
         """Show a plain HTML preview and download page for a completed card."""
-        paths = load_paths(card_id)
+        card, job = load_public_card(card_id)
+        if card is None:
+            if job is not None:
+                return Response(job_status_html(job), mimetype="text/html")
+            abort(404)
+        paths = load_paths(card)
         try:
             metadata = read_metadata(paths)
         except ValueError:
             abort(404)
 
+        public_id = job.id if job is not None else card.id
         title = escape(str(metadata.get("title") or "Recipe card"))
         source_url = metadata.get("source_url")
         source_link = ""
@@ -124,13 +141,13 @@ def create_app(
 <body>
   <h1>{title}</h1>
   <nav aria-label="Card downloads">
-    <a href="/cards/{card_id}/card.png">PNG</a>
-    <a href="/cards/{card_id}/card.svg">SVG</a>
-    <a href="/cards/{card_id}/card.pdf">PDF</a>
-    <a href="/cards/{card_id}/recipe-card.zip">ZIP bundle</a>
+    <a href="/cards/{public_id}/card.png">PNG</a>
+    <a href="/cards/{public_id}/card.svg">SVG</a>
+    <a href="/cards/{public_id}/card.pdf">PDF</a>
+    <a href="/cards/{public_id}/recipe-card.zip">ZIP bundle</a>
   </nav>
   {source_link}
-  <img src="/cards/{card_id}/card.png" alt="{title} recipe card preview">
+  <img src="/cards/{public_id}/card.png" alt="{title} recipe card preview">
 </body>
 </html>
 """
@@ -163,7 +180,9 @@ def create_app(
     def devvit_recipecard() -> Response:
         """Authenticate and queue one normalized recipe-card request from Devvit."""
         if not resolved_settings.devvit_ingestion_enabled:
-            abort(404)
+            response = jsonify(ok=False, error="endpoint_disabled")
+            response.status_code = 404
+            return response
 
         raw_body = request.get_data(cache=True)
         if resolved_settings.devvit_require_hmac and not verify_signature(
@@ -173,14 +192,14 @@ def create_app(
             raw_body,
             tolerance_seconds=resolved_settings.devvit_signature_tolerance_seconds,
         ):
-            response = jsonify(error="unauthorized")
+            response = jsonify(ok=False, error="invalid_signature")
             response.status_code = 401
             return response
 
         try:
             payload = DevvitRecipeCardRequest.model_validate(request.get_json(silent=True))
         except ValidationError:
-            response = jsonify(error="invalid request body")
+            response = jsonify(ok=False, error="invalid_request_body")
             response.status_code = 400
             return response
 
@@ -191,13 +210,15 @@ def create_app(
                 "Devvit recipe-card ingestion failed (%s)",
                 type(error).__name__,
             )
-            response = jsonify(error="ingestion failed")
+            response = jsonify(ok=False, error="ingestion_failed")
             response.status_code = 500
             return response
 
         card_url = f"{resolved_settings.artifact_base_url.rstrip('/')}/{result.job_id}"
+        status = _devvit_response_status(result)
         return jsonify(
-            status="queued" if result.created else "existing",
+            ok=True,
+            status=status,
             job_id=result.job_id,
             card_url=card_url,
         )
@@ -214,6 +235,21 @@ def _database_card_loader(session_factory: SessionFactory) -> CardLoader:
     return load_card
 
 
+def _database_job_loader(session_factory: SessionFactory) -> JobLoader:
+    def load_job(job_id: int) -> Job | None:
+        """Load one job and its linked card in a short-lived database session."""
+        with session_factory() as session:
+            job = session.get(Job, job_id)
+            if job is None:
+                return None
+            if job.card is not None:
+                # Touch the linked card while the session is open for detached use.
+                _ = job.card.id
+            return job
+
+    return load_job
+
+
 def _database_devvit_ingestor(session_factory: SessionFactory) -> DevvitIngestor:
     def ingest(payload: DevvitRecipeCardRequest) -> DevvitIngestionResult:
         """Persist one Devvit request in a single database transaction."""
@@ -223,12 +259,63 @@ def _database_devvit_ingestor(session_factory: SessionFactory) -> DevvitIngestor
     return ingest
 
 
+def _devvit_response_status(result: DevvitIngestionResult) -> str:
+    """Map internal job states to the public Devvit webhook contract."""
+    if not result.created:
+        return "existing"
+    if result.status == JobState.COMPLETED.value:
+        return "ready"
+    if result.status == JobState.QUEUED.value:
+        return "queued"
+    return "processing"
+
+
 def _is_reddit_url(value: str) -> bool:
     parsed = urlsplit(value)
     hostname = parsed.hostname or ""
     return parsed.scheme in {"http", "https"} and (
         hostname == "reddit.com" or hostname.endswith(".reddit.com")
     )
+
+
+def job_status_html(job: Job) -> str:
+    """Return a public status page for a card job that has not produced artifacts yet."""
+    public_status = "processing" if job.status != JobState.FAILED.value else "failed"
+    if public_status == "failed":
+        heading = "RecipeBot could not create this card"
+        message = "The requested recipe card could not be generated."
+        refresh = ""
+    else:
+        heading = "RecipeBot is generating your card"
+        message = (
+            "This card job is still processing. The page refreshes automatically "
+            "and will show PNG, SVG, and PDF downloads when the artifacts are ready."
+        )
+        refresh = '  <meta http-equiv="refresh" content="15">\n'
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+{refresh}  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{escape(heading)} · RecipeBot</title>
+  <style>
+    body {{ margin: 0 auto; max-width: 760px; padding: 32px 20px 64px;
+            background: #fffdf8; color: #23211f; font-family: system-ui, sans-serif;
+            line-height: 1.6; }}
+    h1 {{ font-size: clamp(2rem, 5vw, 3rem); margin-bottom: 12px; }}
+    p {{ margin: 0 0 14px; }}
+    code {{ background: #f1e8dc; border-radius: 4px; padding: 0.1rem 0.25rem; }}
+    a {{ color: #7b4028; font-weight: 650; }}
+  </style>
+</head>
+<body>
+  <h1>{escape(heading)}</h1>
+  <p>{escape(message)}</p>
+  <p>Status: <code>{escape(public_status)}</code></p>
+  <p>Job: <code>{job.id}</code></p>
+</body>
+</html>
+"""
 
 
 def _legal_page_html(page_title: str, sections: list[tuple[str, list[str]]]) -> str:
@@ -278,7 +365,8 @@ def privacy_policy_html() -> str:
                         "RecipeBot is a recipe-card service for Reddit communities. "
                         "When a user posts the !recipecard command, RecipeBot receives "
                         "Reddit command metadata and the parent post or comment recipe "
-                        "content needed to generate a recipe card artifact."
+                        "content needed to generate a recipe card artifact and return "
+                        "a public card URL."
                     ),
                 ],
             ),
@@ -293,7 +381,7 @@ def privacy_policy_html() -> str:
                     ),
                     (
                         "RecipeBot uses that data only to generate recipe card artifacts "
-                        "and to operate the service."
+                        "and to return a hosted card URL."
                     ),
                 ],
             ),
@@ -306,7 +394,11 @@ def privacy_policy_html() -> str:
                     ),
                     (
                         "Generated recipe card artifacts are hosted publicly under "
-                        "/cards/ with a numeric card id and related download routes."
+                        "/cards/ with a numeric job id and related download routes."
+                    ),
+                    (
+                        "The Devvit app replies to the requester's !recipecard command "
+                        "comment with the hosted card URL returned by the backend."
                     ),
                 ],
             ),
@@ -324,7 +416,8 @@ def privacy_policy_html() -> str:
                 "How we use data",
                 [
                     "RecipeBot does not sell user data.",
-                    "RecipeBot does not use the data for advertising.",
+                    "RecipeBot does not use Reddit content for advertising.",
+                    "RecipeBot does not use Reddit content for model training.",
                     (
                         "RecipeBot does not use tracking, analytics cookies, or third-party "
                         "marketing tools on these public pages."
@@ -358,6 +451,10 @@ def terms_of_use_html() -> str:
                         "into downloadable recipe card artifacts. The service is triggered "
                         "when a user posts the exact !recipecard command on Reddit."
                     ),
+                    (
+                        "The Devvit app replies to the requester's command comment with "
+                        "the public card URL returned by RecipeBot's backend."
+                    ),
                 ],
             ),
             (
@@ -378,8 +475,9 @@ def terms_of_use_html() -> str:
                 "Hosted artifacts",
                 [
                     (
-                        "Completed recipe cards are hosted under /cards/ with a numeric "
-                        "card id, along with related PNG, SVG, PDF, and ZIP download routes."
+                        "RecipeBot provides results through a public /cards/ URL with a "
+                        "numeric job id, along with related PNG, SVG, PDF, and ZIP "
+                        "download routes once rendering is complete."
                     ),
                 ],
             ),
@@ -410,7 +508,8 @@ def terms_of_use_html() -> str:
                 "Data sharing and advertising",
                 [
                     "RecipeBot does not sell user data.",
-                    "RecipeBot does not use the data for advertising.",
+                    "RecipeBot does not use Reddit content for advertising.",
+                    "RecipeBot does not use Reddit content for model training.",
                 ],
             ),
             (
@@ -464,7 +563,7 @@ def devvit_api_html() -> str:
     <a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms of Use</a>
   </nav>
   <h1>RecipeBot Devvit API</h1>
-  <p>RecipeBot uses this domain for one purpose: receiving signed <code>!recipecard</code> job requests from the RecipeBot Devvit app.</p>
+  <p>RecipeBot uses this domain for one purpose: receiving signed <code>!recipecard</code> job requests from the RecipeBot Devvit app and returning a generated recipe card URL.</p>
 
   <section>
     <h2>Endpoint</h2>
@@ -480,6 +579,13 @@ def devvit_api_html() -> str:
   </section>
 
   <section>
+    <h2>User Delivery</h2>
+    <p>After the backend accepts the job, it returns a public card URL.</p>
+    <p>The Devvit app replies to the user's <code>!recipecard</code> command comment with that URL so the requester can retrieve the generated card.</p>
+    <p>If the card is still rendering, the card page shows the current processing state and updates when the PNG, SVG, and PDF artifacts are ready.</p>
+  </section>
+
+  <section>
     <h2>Data Sent</h2>
     <p>The request may include:</p>
     <ul>
@@ -492,7 +598,7 @@ def devvit_api_html() -> str:
       <li>parent URL</li>
       <li>created timestamp</li>
     </ul>
-    <p>This data is used only to create the requested recipe card job.</p>
+    <p>This data is used only to create the requested recipe card job and return a hosted card URL.</p>
   </section>
 
   <section>

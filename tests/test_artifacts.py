@@ -53,12 +53,12 @@ def test_create_job_bundle_contains_every_required_file(tmp_path: Path) -> None:
     )
 
     assert bundle.paths.zip.is_file()
-    assert bundle.urls["landing"] == "https://recipebot.example/cards/4"
+    assert bundle.urls["landing"] == "https://recipebot.example/cards/9"
     with ZipFile(bundle.paths.zip) as archive:
         assert archive.namelist() == list(BUNDLE_FILENAMES)
         metadata = json.loads(archive.read("metadata.json"))
     assert metadata["job_id"] == 9
-    assert metadata["urls"]["zip"].endswith("/4/recipe-card.zip")
+    assert metadata["urls"]["zip"].endswith("/9/recipe-card.zip")
 
 
 def test_create_job_bundle_requires_all_rendered_files(tmp_path: Path) -> None:

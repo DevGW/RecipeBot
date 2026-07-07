@@ -49,3 +49,4 @@ class DevvitIngestionResult(BaseModel):
 
     job_id: int = Field(gt=0)
     created: bool
+    status: str = Field(min_length=1)

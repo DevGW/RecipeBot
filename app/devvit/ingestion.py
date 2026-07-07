@@ -21,7 +21,11 @@ def ingest_devvit_request(
         select(Job).where(Job.command_comment_id == payload.command_comment_id)
     )
     if existing_job is not None:
-        return DevvitIngestionResult(job_id=existing_job.id, created=False)
+        return DevvitIngestionResult(
+            job_id=existing_job.id,
+            created=False,
+            status=existing_job.status,
+        )
 
     extracted = extract_recipe(payload.source_title, payload.source_body)
     subreddit = _upsert_subreddit(session, payload.subreddit)
@@ -33,7 +37,7 @@ def ingest_devvit_request(
         source_item.id,
         requester_username=payload.requester_username,
     )
-    return DevvitIngestionResult(job_id=job.id, created=created)
+    return DevvitIngestionResult(job_id=job.id, created=created, status=job.status)
 
 
 def _upsert_subreddit(session: Session, name: str) -> Subreddit:

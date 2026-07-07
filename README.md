@@ -25,7 +25,7 @@ RecipeBot does not use an external task queue. Postgres is the durable queue.
 
 The preferred Reddit integration is Devvit. The Devvit adapter listens for comment-created events, detects the exact standalone `!recipecard` command, resolves the parent recipe post or comment, signs the payload, and sends it to the Flask backend.
 
-The Devvit adapter does **not** render cards, store recipes inside Devvit, send DMs, or post public Reddit replies. Rendering, persistence, artifact generation, and artifact hosting are handled by the Flask/Postgres/worker backend.
+The Devvit adapter does **not** render cards, store recipes inside Devvit, send DMs, or use backend Reddit OAuth/PRAW. Rendering, persistence, artifact generation, and artifact hosting are handled by the Flask/Postgres/worker backend. After the backend accepts a job, Devvit replies to the user's command comment with the returned public card URL.
 
 The legacy PRAW listener is retained as an optional adapter but is no longer the preferred path.
 
@@ -37,6 +37,7 @@ Reddit / Devvit
   exact !recipecard detection
   parent post/comment resolution
   signed POST to Flask backend
+  public reply to command comment with card URL
 
 Backend runtime
   Flask/Gunicorn API
@@ -149,7 +150,7 @@ python -m app.jobs.worker
 
 Synthetic jobs without a requester skip messaging.
 
-Legacy PRAW-ingested jobs can use the messaging lifecycle state for durable DM delivery before completion. Devvit-ingested jobs currently queue silently and do not send DMs or public replies.
+Legacy PRAW-ingested jobs can use the messaging lifecycle state for durable DM delivery before completion. Devvit-ingested jobs return a public card URL from the backend, and the Devvit app replies to the command comment with that URL.
 
 ## Local delivery service
 
@@ -452,6 +453,8 @@ RecipeBot onCommentCreate handler entered
 RecipeBot checking comment command
 RecipeBot backend request
 ```
+
+After the backend accepts the job, the Devvit app replies to the `!recipecard` command comment with the public card URL.
 
 If the fetch domain is still pending, the backend request will fail with:
 
@@ -771,7 +774,6 @@ The preferred Devvit adapter does not:
 - store recipes inside Devvit
 - write to Postgres directly
 - send DMs
-- post public replies
 - upload Reddit media
 - use Redis
 - use PRAW

@@ -47,7 +47,9 @@ def devvit_app(tmp_path: Path) -> tuple[Flask, MagicMock]:
         DEVVIT_REQUIRE_HMAC=True,
         DEVVIT_SIGNATURE_TOLERANCE_SECONDS=300,
     )
-    ingestor = MagicMock(return_value=DevvitIngestionResult(job_id=123, created=True))
+    ingestor = MagicMock(
+        return_value=DevvitIngestionResult(job_id=123, created=True, status="queued")
+    )
     application = create_app(
         settings,
         card_loader=lambda _card_id: None,
@@ -89,6 +91,7 @@ def test_missing_timestamp_is_unauthorized(devvit_app: tuple[Flask, MagicMock]) 
     )
 
     assert response.status_code == 401
+    assert response.get_json() == {"ok": False, "error": "invalid_signature"}
     ingestor.assert_not_called()
 
 
@@ -105,6 +108,7 @@ def test_missing_signature_is_unauthorized(devvit_app: tuple[Flask, MagicMock]) 
     )
 
     assert response.status_code == 401
+    assert response.get_json() == {"ok": False, "error": "invalid_signature"}
     ingestor.assert_not_called()
 
 
@@ -114,6 +118,7 @@ def test_invalid_signature_is_unauthorized(devvit_app: tuple[Flask, MagicMock]) 
     response = _signed_post(application.test_client(), _payload(), signature="0" * 64)
 
     assert response.status_code == 401
+    assert response.get_json() == {"ok": False, "error": "invalid_signature"}
     ingestor.assert_not_called()
 
 
@@ -128,6 +133,7 @@ def test_stale_timestamp_is_unauthorized(devvit_app: tuple[Flask, MagicMock]) ->
     )
 
     assert response.status_code == 401
+    assert response.get_json() == {"ok": False, "error": "invalid_signature"}
     ingestor.assert_not_called()
 
 
@@ -140,6 +146,7 @@ def test_valid_hmac_queues_job_and_returns_card_url(
 
     assert response.status_code == 200
     assert response.get_json() == {
+        "ok": True,
         "status": "queued",
         "job_id": 123,
         "card_url": "https://recipebot.devgw.com/cards/123",
@@ -154,13 +161,21 @@ def test_duplicate_command_returns_existing_job(
 ) -> None:
     """A duplicate command must report the existing durable job."""
     application, ingestor = devvit_app
-    ingestor.return_value = DevvitIngestionResult(job_id=123, created=False)
+    ingestor.return_value = DevvitIngestionResult(
+        job_id=123,
+        created=False,
+        status="rendering",
+    )
 
     response = _signed_post(application.test_client(), _payload())
 
     assert response.status_code == 200
-    assert response.get_json()["status"] == "existing"
-    assert response.get_json()["job_id"] == 123
+    assert response.get_json() == {
+        "ok": True,
+        "status": "existing",
+        "job_id": 123,
+        "card_url": "https://recipebot.devgw.com/cards/123",
+    }
 
 
 def test_empty_source_body_is_rejected(devvit_app: tuple[Flask, MagicMock]) -> None:
@@ -169,7 +184,7 @@ def test_empty_source_body_is_rejected(devvit_app: tuple[Flask, MagicMock]) -> N
     response = _signed_post(application.test_client(), _payload(source_body="  \n "))
 
     assert response.status_code == 400
-    assert response.get_json() == {"error": "invalid request body"}
+    assert response.get_json() == {"ok": False, "error": "invalid_request_body"}
     ingestor.assert_not_called()
 
 
@@ -185,6 +200,6 @@ def test_ingestion_failure_returns_generic_error(
         response = _signed_post(application.test_client(), _payload())
 
     assert response.status_code == 500
-    assert response.get_json() == {"error": "ingestion failed"}
+    assert response.get_json() == {"ok": False, "error": "ingestion_failed"}
     assert SECRET not in response.get_data(as_text=True)
     assert SECRET not in caplog.text

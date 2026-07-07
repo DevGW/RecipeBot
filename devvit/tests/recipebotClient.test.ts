@@ -92,7 +92,7 @@ describe("RecipeBot backend request", () => {
     expect(JSON.stringify(logger.entries)).not.toContain("X-RecipeBot-Signature");
   });
 
-  it("logs the HTTP status and body for a non-2xx response", async () => {
+  it("logs sanitized diagnostics for a non-2xx response", async () => {
     const logger = new TestLogger();
     const result = await sendRecipeCardRequest(
       payload,
@@ -109,8 +109,66 @@ describe("RecipeBot backend request", () => {
       message: "RecipeBot backend response",
       details: expect.objectContaining({
         httpStatus: 401,
-        responseBody: '{"error":"unauthorized"}',
+        backendError: "unauthorized",
+        responseBodyLength: 24,
       }),
+    });
+    expect(JSON.stringify(logger.entries)).not.toContain('{"error":"unauthorized"}');
+  });
+
+  it("parses the explicit ok/card_url backend response", async () => {
+    const logger = new TestLogger();
+    const result = await sendRecipeCardRequest(
+      payload,
+      {
+        backendUrl: "https://recipebot.devgw.com",
+        webhookSecret: "test-secret",
+      },
+      logger,
+      async () => new Response(JSON.stringify({
+        ok: true,
+        status: "ready",
+        job_id: 123,
+        card_url: "https://recipebot.devgw.com/cards/123",
+      }), { status: 200 }),
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      response: {
+        ok: true,
+        status: "ready",
+        job_id: 123,
+        card_url: "https://recipebot.devgw.com/cards/123",
+      },
+    });
+  });
+
+  it("uses a generic status URL when card_url is absent", async () => {
+    const logger = new TestLogger();
+    const result = await sendRecipeCardRequest(
+      payload,
+      {
+        backendUrl: "https://recipebot.devgw.com",
+        webhookSecret: "test-secret",
+      },
+      logger,
+      async () => new Response(JSON.stringify({
+        ok: true,
+        status: "processing",
+        job_id: "123",
+        status_url: "https://recipebot.devgw.com/cards/123",
+      }), { status: 200 }),
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      response: {
+        ok: true,
+        status: "processing",
+        job_id: 123,
+        card_url: "https://recipebot.devgw.com/cards/123",
+      },
     });
   });
 });

@@ -124,6 +124,7 @@ export async function handleCommentCreate(
     await replyToCommandComment(
       payload.command_comment_id,
       result.response.card_url,
+      result.response.status,
       dependencies.redditReplier,
       dependencies.logger,
     );

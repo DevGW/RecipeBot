@@ -12,13 +12,30 @@ export interface RedditCommentSubmitter {
 }
 
 /** Build the public reply text shown after a card job is queued. */
-export function buildQueuedReply(cardUrl: string): string {
+export function buildRecipeBotReply(
+  cardUrl: string,
+  status: "queued" | "processing" | "ready" | "existing",
+): string {
+  if (status === "ready") {
+    return [
+      "Your RecipeBot card is ready:",
+      "",
+      cardUrl,
+    ].join("\n");
+  }
+  if (status === "existing") {
+    return [
+      "RecipeBot already has a card job for this request:",
+      "",
+      cardUrl,
+    ].join("\n");
+  }
   return [
-    "RecipeBot queued your card:",
+    "RecipeBot is generating your card:",
     "",
     cardUrl,
     "",
-    "It may take a moment for all downloads to appear.",
+    "The page will update when the PNG, SVG, and PDF files are ready.",
   ].join("\n");
 }
 
@@ -26,13 +43,14 @@ export function buildQueuedReply(cardUrl: string): string {
 export async function replyToCommandComment(
   commandCommentId: CommentId,
   cardUrl: string,
+  status: "queued" | "processing" | "ready" | "existing",
   reddit: RedditCommentSubmitter,
   logger: RecipeBotLogger = console,
 ): Promise<boolean> {
   try {
     await reddit.submitComment({
       id: commandCommentId,
-      text: buildQueuedReply(cardUrl),
+      text: buildRecipeBotReply(cardUrl, status),
       runAs: "APP",
     });
     logger.log("RecipeBot command reply posted", {
